@@ -9,6 +9,7 @@ block content
         - selected_captcha_object = captcha
         - selected_captcha_name = name
   script.
+    const claimAddressState = !{safeJsonForScript({ hash: (hash == null ? '' : hash), claimName: (claim_name == null ? '' : claim_name) })};
     $(document).ready(function () {
         $('#claimInstructions').on('show.bs.collapse', function () {
           $('#showClaimInstructions').html('<i class="fa-solid fa-angle-down" style="margin-right:5px;"></i><span>Hide claim instructions</span>');
@@ -66,20 +67,20 @@ block content
             }
           }
         });
-        if ('!{hash}' != 'null' && '!{hash}' != '') {
+        if (claimAddressState.hash != '') {
           $('<div id="claimAlert"></div>').insertBefore('#claimForm');
-          $('#claimAlert').html(generateAlertHTML('info', true, ('!{claim_name}' == '' ? 'Unc' : 'C') + 'laimed address', '<strong>!{hash}</strong> is currently ' + ('!{claim_name}' == '' ? 'un' : '') + 'claimed' + ('!{claim_name}' == '' ? '' : ' as <strong>' + displayAsText('!{claim_name}') + '.</strong>')));
+          $('#claimAlert').html(generateAlertHTML('info', true, (claimAddressState.claimName == '' ? 'Unc' : 'C') + 'laimed address', '<strong>' + displayAsText(claimAddressState.hash) + '</strong> is currently ' + (claimAddressState.claimName == '' ? 'un' : '') + 'claimed' + (claimAddressState.claimName == '' ? '' : ' as <strong>' + displayAsText(claimAddressState.claimName) + '.</strong>')));
         }
         if (#{settings.shared_pages.page_header.page_title_image.enable_animation} == true && #{settings.claim_address_page.page_header.show_img} == true)
           startRotateElement('img#header-img');
       });
       function displayAsText(str) {
-        return str.replace(/</g, '&#60;').replace(/>/g, '&#62;');
+        return defcoinEscapeHtml(str);
       }
       function showClaimAlert(claimClass, warnMsg, removedClaim) {
         if ($('#claimAlert').length == 0)
           $('<div id="claimAlert"></div>').insertBefore('#claimForm');
-        $('#claimAlert').html(generateAlertHTML(claimClass, true, (claimClass == 'success' ? (removedClaim ? 'Address claim removed successfully' : 'Address claimed successfully') : (claimClass == 'danger' ? 'Failed to claim address' : 'Required field missing')), (claimClass == 'success' ? '<strong>' + $('input#address').val() + '</strong> will now be referred to as <strong>' + (removedClaim ? $('input#address').val() : displayAsText($('#message').val())) + '</strong> throughout the website' : warnMsg) + '.'));
+        $('#claimAlert').html(generateAlertHTML(claimClass, true, (claimClass == 'success' ? (removedClaim ? 'Address claim removed successfully' : 'Address claimed successfully') : (claimClass == 'danger' ? 'Failed to claim address' : 'Required field missing')), (claimClass == 'success' ? '<strong>' + displayAsText($('input#address').val()) + '</strong> will now be referred to as <strong>' + (removedClaim ? displayAsText($('input#address').val()) : displayAsText($('#message').val())) + '</strong> throughout the website' : displayAsText(warnMsg)) + '.'));
         fixFooterHeightAndPosition();
       }
       function generateAlertHTML(alertClass, allowDismiss, headerText, msgText) {
@@ -138,10 +139,7 @@ block content
       }
   .col-xs-12.col-md-12
     if settings.claim_address_page.page_header.show_img == true || settings.claim_address_page.page_header.show_title == true || settings.claim_address_page.page_header.show_description == true
-      #page-header-container(style='align-items:' + (settings.claim_address_page.page_header.show_img == true && settings.claim_address_page.page_header.show_title == true && settings.claim_address_page.page_header.show_description == true ? 'flex-start' : 'center'))
-        if settings.claim_address_page.page_header.show_img == true
-          #header-img-container
-            img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
+      #page-header-container
         #page-title-container
           if settings.claim_address_page.page_header.show_title == true
             h3#page-title #{settings.localization.claim_title.replace('{1}', settings.coin.name)}
@@ -151,6 +149,7 @@ block content
                 .sub-page-header.text-muted=settings.localization.claim_description.replace('{1}', settings.coin.name)
             else
               .sub-page-header.text-muted=settings.localization.claim_description.replace('{1}', settings.coin.name)
+        +defcoinPageBranding()
       .cardSpacer.clearfix
     .card.card-default.border-0.cardSpacer
       .card-header

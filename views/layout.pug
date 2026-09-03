@@ -1,30 +1,113 @@
+mixin poolIcon()
+  svg.nav-icon-svg(viewBox='0 0 24 24', fill='none', stroke='currentColor', stroke-width='1.8', stroke-linecap='round', stroke-linejoin='round', aria-hidden='true')
+    path(d='M4.2 10.3c0-2.8 3.5-5 7.8-5s7.8 2.2 7.8 5-3.5 5-7.8 5-7.8-2.2-7.8-5z')
+    path(d='M6.2 10.3c0 1.7 2.6 3 5.8 3s5.8-1.3 5.8-3-2.6-3-5.8-3-5.8 1.3-5.8 3z')
+    path(d='M6.4 14.1c.8 2.6 3 4.1 5.6 4.1s4.8-1.5 5.6-4.1')
+    path(d='M8.1 10.9c1.2.8 2.5.8 3.9 0s2.7-.8 3.9 0')
+
+mixin miningStatsIcon()
+  svg.nav-icon-svg(viewBox='0 0 24 24', fill='none', stroke='currentColor', stroke-width='2.15', stroke-linecap='round', stroke-linejoin='round', aria-hidden='true')
+    path(d='M3.8 16.9c1.6-6.8 3.8-7.1 5.3-1 1.1 4.4 2.5 4.1 4-1.6 1.3-5 2.9-7.1 4.8-5.5')
+    path(d='M15.9 13.1 20.1 8.9')
+    path(d='M20.1 8.9 20 12.5')
+    path(d='M20.1 8.9 16.5 9')
+
+mixin richlistIcon()
+  svg.nav-icon-svg(viewBox='0 0 24 24', fill='none', stroke='currentColor', stroke-width='1.85', stroke-linecap='round', stroke-linejoin='round', aria-hidden='true')
+    rect(x='3.7', y='13.2', width='4.3', height='6.1', rx='.7')
+    rect(x='9.85', y='8.4', width='4.3', height='10.9', rx='.7')
+    rect(x='16', y='11.3', width='4.3', height='8', rx='.7')
+    path(d='M11.1 5.7 12 3.9l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2L9.1 6z', fill='currentColor', stroke='none')
+    path(d='M5.85 11.1v-1.7')
+    path(d='M18.15 9.2v-1.7')
+
+mixin calculatorCrownIcon()
+  svg.nav-icon-svg(viewBox='0 0 24 24', fill='none', stroke='currentColor', stroke-width='1.8', stroke-linecap='round', stroke-linejoin='round', aria-hidden='true')
+    circle(cx='12', cy='8.2', r='4.5')
+    path(d='M12 5.7l.75 1.5 1.66.24-1.2 1.17.29 1.65L12 9.49l-1.5.77.29-1.65-1.2-1.17 1.66-.24L12 5.7z', fill='currentColor', stroke='none')
+    path(d='M9.2 12.1 7.4 20l4.6-2.5 4.6 2.5-1.8-7.9')
+    path(d='M9.1 16.1 12 14.5l2.9 1.6')
+
+mixin qrIcon()
+  svg.nav-icon-svg.nav-icon-qr(viewBox='0 0 24 24', fill='none', stroke='currentColor', stroke-width='1.7', stroke-linecap='square', stroke-linejoin='miter', aria-hidden='true')
+    rect(x='4', y='4', width='5.4', height='5.4', rx='.45')
+    rect(x='14.6', y='4', width='5.4', height='5.4', rx='.45')
+    rect(x='4', y='14.6', width='5.4', height='5.4', rx='.45')
+    rect(x='15.1', y='15.1', width='2.1', height='2.1', rx='.2')
+    rect(x='18', y='18', width='2', height='2', rx='.2')
+    rect(x='18.2', y='14.7', width='1.8', height='1.8', rx='.2')
+    rect(x='14.7', y='18.2', width='1.8', height='1.8', rx='.2')
+    path(d='M11.8 4.2v2.1')
+    path(d='M11.8 8.1v1.8')
+    path(d='M4.2 11.8h2.1')
+    path(d='M8.1 11.8h1.8')
+
+mixin clockHistoryIcon()
+  svg.nav-icon-svg(viewBox='0 0 24 24', fill='none', stroke='currentColor', stroke-width='1.8', stroke-linecap='round', stroke-linejoin='round', aria-hidden='true')
+    circle(cx='12', cy='12', r='8')
+    path(d='M12 7.5v4.8l3.2 2')
+    path(d='M12 2.9v1.6')
+    path(d='M21.1 12h-1.6')
+
+mixin legacyExplorerIcon()
+  span.nav-icon-legacy-shell(aria-hidden='true')
+    span.nav-icon-legacy-paren (
+    span.nav-icon-legacy-mark.fa-solid.fa-cubes
+    span.nav-icon-legacy-paren )
+
+mixin defcoinPageBranding(imgContainerClass = '')
+  .defcoin-page-branding
+    span.defcoin-slogan-shell.defcoin-slogan-shell-page
+      span.defcoin-slogan-kicker DEFCOIN:
+      span.defcoin-slogan-copy(data-defcoin-slogan='true') “The Honeypot of Cryptocurrencies”
+    #header-img-container(class=imgContainerClass)
+      img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
+
 doctype html
+- const defcoinOrigin = 'https://defcoin.dc903.org'
+- const assetBase = (typeof assetPrefix !== 'undefined' && assetPrefix != null ? assetPrefix : '')
+- const assetPath = (path) => assetBase + (path.startsWith('/') ? path : '/' + path)
+- const resolveAssetUrl = (path) => (path == null || path == '' ? '' : (/^(https?:)?\/\//.test(path) ? path : assetPath(path)))
+- const defcoinPath = (path = '') => defcoinOrigin + (path === '' ? '' : (path.startsWith('/') ? path : '/' + path))
+- const explorerBaseUrl = defcoinPath('/explorer')
+- const explorerPath = (path = '') => explorerBaseUrl + (path === '' ? '' : (path.startsWith('/') ? path : '/' + path))
+- const siteHomeUrl = defcoinPath('/pool')
+- const poolBaseUrl = defcoinPath('/pool')
+- const calcBaseUrl = defcoinPath('/calc')
+- const qrgenBaseUrl = defcoinPath('/qrgen')
+- const historyBaseUrl = defcoinPath('/history')
+- const baseDocumentTitle = (page_title_prefix == null || page_title_prefix == '' ? settings.localization.error_title.replace('{1}', settings.coin.name) : page_title_prefix)
+- const sharedDocumentTitle = settings.shared_pages.page_title
+- const documentTitle = (baseDocumentTitle == sharedDocumentTitle ? sharedDocumentTitle : baseDocumentTitle + ' - ' + sharedDocumentTitle)
 html(lang='en')
   head
     meta(charset='UTF-8')
     meta(name='viewport' content='width=device-width, initial-scale=1')
     meta(http-equiv='Content-Language', content='en')
+    meta(name='description', content='Defcoin blockchain explorer for blocks, transactions, addresses, network peers, mining statistics, and pool status.')
     meta(name='version', content=settings.explorer_version + (settings.revision == null || settings.revision == '' ? '' : `-${settings.revision}`))
-    title=(page_title_prefix == null || page_title_prefix == '' ? settings.localization.error_title.replace('{1}', settings.coin.name) : page_title_prefix) + ' - ' + settings.shared_pages.page_title
+    title=documentTitle
+    link(rel='shortcut icon', href=assetPath('/favicon.ico'), type='image/x-icon')
     if settings.shared_pages.favicons.favicon32 != ''
-      link(rel='icon', href='/' + settings.shared_pages.favicons.favicon32, sizes='32x32')
+      link(rel='icon', href=assetPath('/' + settings.shared_pages.favicons.favicon32), sizes='32x32')
     if settings.shared_pages.favicons.favicon128 != ''
-      link(rel='icon', href='/' + settings.shared_pages.favicons.favicon128, sizes='128x128')
+      link(rel='icon', href=assetPath('/' + settings.shared_pages.favicons.favicon128), sizes='128x128')
     if settings.shared_pages.favicons.favicon180 != ''
-      link(rel='icon', href='/' + settings.shared_pages.favicons.favicon180, sizes='180x180')
+      link(rel='icon', href=assetPath('/' + settings.shared_pages.favicons.favicon180), sizes='180x180')
     if settings.shared_pages.favicons.favicon192 != ''
-      link(rel='icon', href='/' + settings.shared_pages.favicons.favicon192, sizes='192x192')
-    link(rel='stylesheet', href='/css/themes/' + settings.shared_pages.theme.toLowerCase() + '/bootstrap.min.css' + (themeHash == null ? '' : '?h=' + themeHash))
+      link(rel='icon', href=assetPath('/' + settings.shared_pages.favicons.favicon192), sizes='192x192')
+    link(rel='stylesheet', href=assetPath('/css/themes/' + settings.shared_pages.theme.toLowerCase() + '/bootstrap.min.css' + (themeHash == null ? '' : '?h=' + themeHash)))
     link(rel='stylesheet', href='https://use.fontawesome.com/releases/v6.4.2/css/all.css')
     if active == 'network'
       link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/flag-icons/6.11.1/css/flag-icons.min.css')
     link(rel='stylesheet', type='text/css', href='https://cdn.datatables.net/v/bs5/dt-1.13.6/datatables.min.css')
     link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/overlayscrollbars/2.3.2/styles/overlayscrollbars.min.css')
-    link(rel='stylesheet', href='/css/style.min.css' + (styleHash == null ? '' : '?h=' + styleHash))
-    link(rel='stylesheet', href='/css/custom.min.css' + (customHash == null ? '' : '?h=' + customHash))
+    link(rel='stylesheet', href=assetPath('/css/style.min.css' + (styleHash == null ? '' : '?h=' + styleHash)))
+    link(rel='stylesheet', href=assetPath('/css/custom.min.css' + (customHash == null ? '' : '?h=' + customHash)))
+    link(rel='stylesheet', href=assetPath('/css/defcoin-integrated.css?v=20260620k'))
     script(type='text/javascript', src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js', integrity='sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==', crossorigin='anonymous', referrerpolicy='no-referrer')
     script(type='text/javascript', src='https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js', integrity='sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p', crossorigin='anonymous')
-    script(type='text/javascript', src='/js/custom.js')
+    script(type='text/javascript', src=assetPath('/js/custom.js'))
     script(type='text/javascript', src='https://cdn.datatables.net/v/bs5/dt-1.13.6/datatables.min.js')
     script(type='text/javascript', src='https://cdnjs.cloudflare.com/ajax/libs/overlayscrollbars/2.3.2/browser/overlayscrollbars.browser.es6.min.js', integrity="sha512-jh4tHrf3Zaee6k2wOl1kVm4Gm5uIFbOQkUPfA419yLxADm1Q9jtihcGAJUl9ThBR8yc4/VYCOQCY/K87g14kSw==", crossorigin="anonymous", referrerpolicy="no-referrer")
     - var showPanels = false
@@ -191,6 +274,23 @@ html(lang='en')
     script.
       const { OverlayScrollbars } = OverlayScrollbarsGlobal;
       var isDocumentReady = false;
+      const explorerBaseUrl = '!{explorerBaseUrl}';
+      const poolBaseUrl = '!{poolBaseUrl}';
+      const calcBaseUrl = '!{calcBaseUrl}';
+      const qrgenBaseUrl = '!{qrgenBaseUrl}';
+      const historyBaseUrl = '!{historyBaseUrl}';
+      const siteHomeUrl = '!{siteHomeUrl}';
+      const defcoinSlogans = [
+        'The Honeypot of Cryptocurrencies',
+        'Unimaginably Valuable',
+        '∞ Priceless ∞',
+        'Born on April Fools, A Living Joke!',
+        'The secret to great rewards? Be the only one mining.',
+        'Experience crypto mining like its 2014!',
+        'Where your treasure is, there your heart will be also.',
+        '50% of the hashrate is 50% of the take. Slow and steady wins a pot.',
+        'Hashrate is POWER, power from your wallet, in ¢/kWh'
+      ];
 
       /* special thanks to the stackoverflow community for the getParameterByName function: https://stackoverflow.com/a/901144/3038650 */
       function getParameterByName(name, url = window.location.href) {
@@ -275,20 +375,76 @@ html(lang='en')
         }
       }
       function startRotateElement(elementSelector) {
-        setTimeout(function() {
-          rotateElement(elementSelector);
-        }, 100);
+        return;
+      }
+      function rotateDefcoinSlogan() {
+        const sloganNodes = document.querySelectorAll('[data-defcoin-slogan]');
+
+        if (!sloganNodes.length)
+          return;
+
+        const storedIndex = parseInt(window.localStorage.getItem('defcoinSloganIndex') || '0', 10);
+        const sloganIndex = (Number.isFinite(storedIndex) && storedIndex >= 0 ? storedIndex % defcoinSlogans.length : 0);
+        const slogan = '“' + defcoinSlogans[sloganIndex] + '”';
+
+        sloganNodes.forEach((node) => {
+          node.textContent = slogan;
+        });
+
+        window.localStorage.setItem('defcoinSloganIndex', ((sloganIndex + 1) % defcoinSlogans.length).toString());
+      }
+      function formatConnectionFooterLabel(overview, fallbackConnections) {
+        const parsedFallback = parseInt(fallbackConnections, 10);
+        const total = (overview != null && Number.isFinite(parseInt(overview.connection_count, 10)) ? parseInt(overview.connection_count, 10) : parsedFallback);
+        const listed = (overview != null && Number.isFinite(parseInt(overview.listed_connection_count, 10)) ? parseInt(overview.listed_connection_count, 10) : total);
+        const walletOnly = (overview != null ? (parseInt(overview.wallet_only_connection_count || 0, 10) || 0) : 0);
+        const localServices = (overview != null ? (parseInt(overview.local_service_count || 0, 10) || 0) : 0);
+        const unresolved = (overview != null ? (parseInt(overview.unresolved_connection_count || 0, 10) || 0) : 0);
+        const extras = [];
+
+        if (!Number.isFinite(total))
+          return 'Connections unavailable';
+
+        if (walletOnly > 0)
+          extras.push(`${walletOnly} wallet-only`);
+
+        if (localServices > 0)
+          extras.push(`${localServices} local service${localServices == 1 ? '' : 's'}`);
+
+        if (unresolved > 0)
+          extras.push(`${unresolved} pending/unresolved`);
+
+        if (extras.length > 0)
+          return `${total} connections: ${listed} connected peers + ${extras.join(' + ')}`;
+        else if (total == 1)
+          return '1 connected peer';
+        else
+          return `${total} connected peers`;
       }
       function update_block_and_connection_stats() {
         const summary_headers = {
           'Accept': 'application/json, text/javascript, */*; q=0.01',
           'footer-only': 'true'
         };
+        const internal_headers = {
+          'Accept': 'application/json, text/javascript, */*; q=0.01'
+        };
 
-        $.ajax({url: '/ext/getsummary', headers: summary_headers, cache: false, success: function(json) {
-          $("#lblConnections").text(json.connections + ' connections');
-          $("#lblBlockcount").text(json.blockcount + ' blocks');
-        }});
+        $.when(
+          $.ajax({url: explorerBaseUrl + '/ext/getsummary', headers: summary_headers, cache: false}),
+          $.ajax({url: explorerBaseUrl + '/ext/getnetworkoverview/internal', headers: internal_headers, cache: false})
+        ).done(function(summaryResponse, overviewResponse) {
+          const summary = summaryResponse[0];
+          const overview = overviewResponse[0];
+
+          $("#lblConnections").text(formatConnectionFooterLabel(overview, summary.connections));
+          $("#lblBlockcount").text(summary.blockcount + ' blocks');
+        }).fail(function() {
+          $.ajax({url: explorerBaseUrl + '/ext/getsummary', headers: summary_headers, cache: false, success: function(json) {
+            $("#lblConnections").text((json.connections || '-') + ' connections');
+            $("#lblBlockcount").text((json.blockcount || '-') + ' blocks');
+          }});
+        });
       }
       $(document).on('click', 'button.btn-close', function (e) {
         e.preventDefault();
@@ -324,6 +480,7 @@ html(lang='en')
         }, 60000);
 
         update_block_and_connection_stats();
+        rotateDefcoinSlogan();
         fixFooterHeightAndPosition();
         enableTooltips();
         isDocumentReady = true;
@@ -339,12 +496,12 @@ html(lang='en')
           }
         }
         function getNetworkPanel() {
-          return '<div class="card-header"><strong>#{settings.localization.network} <span class="small fw-normal">' + getNetHashUnits() + '</span></strong></div><div class="card-body"><div id="hashratePanelLoading" class="header-panel"><i class="fa-solid fa-spinner fa-spin-pulse"></i></div><div id="hashratepanel" class="header-panel" style="display:none;"><span class="fa-solid fa-gears"></span><label id="hashrate"></label></div></div>';
+          return '<div class="card-header"><strong>Detected #{settings.localization.network} <span class="small fw-normal">' + getNetHashUnits() + '</span></strong></div><div class="card-body"><div id="hashratePanelLoading" class="header-panel"><i class="fa-solid fa-spinner fa-spin-pulse"></i></div><div id="hashratepanel" class="header-panel" style="display:none;"><span class="fa-solid fa-gears"></span><label id="hashrate"></label></div></div>';
         }
         function getDifficultyPanel() {
           let difficultyType='<label id="difficulty"></label>';
           if ('#{settings.shared_pages.difficulty}' == 'Hybrid') difficultyType+='<br /><span class="fa-solid fa-sliders"></span><label id="difficultyHybrid"></label>';
-          return '<div class="card-header"><strong>#{settings.localization.difficulty}</strong></div><div class="card-body"><div id="difficultyPanelLoading" class="header-panel"><i class="fa-solid fa-spinner fa-spin-pulse"></i></div><div id="difficultypanel" class="header-panel" style="display:none;"><span class="fa-solid fa-sliders"></span>'+difficultyType+'</div></div>';
+          return '<div class="card-header"><strong>Detected #{settings.localization.difficulty}</strong></div><div class="card-body"><div id="difficultyPanelLoading" class="header-panel"><i class="fa-solid fa-spinner fa-spin-pulse"></i></div><div id="difficultypanel" class="header-panel" style="display:none;"><span class="fa-solid fa-sliders"></span>'+difficultyType+'</div></div>';
         }
         function getMasternodesPanel() {
           return '<div class="card-header"><strong>#{settings.localization.masternodecount}</strong></div><div class="card-body"><div id="masternodePanelLoading" class="header-panel"><i class="fa-solid fa-spinner fa-spin-pulse"></i></div><div id="masternodepanel" class="header-panel" style="display:none;"><span id="spnMasternodeCountOnline" class="fa-solid fa-circle-check" data-bs-toggle="tooltip" data-bs-placement="top"></span><label id="masternodeCountOnline" data-bs-toggle="tooltip" data-bs-placement="top"></label><label>&nbsp;/&nbsp;</label><label id="masternodeCountOffline" data-bs-toggle="tooltip" data-bs-placement="top"></label><span id="spnMasternodeCountOffline" class="fa-solid fa-triangle-exclamation" data-bs-toggle="tooltip" data-bs-placement="top"></span></div></div>';
@@ -427,7 +584,7 @@ html(lang='en')
             Accept: 'application/json, text/javascript, */*; q=0.01'
           };
 
-          $.ajax({url: '/ext/getsummary', headers: summary_headers, cache: false, success: function(json) {
+          $.ajax({url: explorerBaseUrl + '/ext/getsummary', headers: summary_headers, cache: false, success: function(json) {
             if (json.masternodeCountOnline == null)
               json.masternodeCountOnline = '-';
             if (json.masternodeCountOffline == null)
@@ -455,11 +612,17 @@ html(lang='en')
             $("#usdMarketCap").html(splitParts[0] + '.<span class="decimal">' + splitParts[1] + '</span>');
             showTopPanelData('usdMarketCapPanel', 'usdMarketCapPanelLoading');
 
-            splitParts = json.difficulty.split('.');
-            $("#difficulty").html(splitParts[0] + '.<span class="decimal">' + splitParts[1] + '</span>');
+            if (json.difficulty == null || json.difficulty == '' || json.difficulty == '-' || json.difficulty.indexOf('.') === -1)
+              $("#difficulty").text(json.difficulty == null || json.difficulty == '' ? '-' : json.difficulty);
+            else {
+              splitParts = json.difficulty.split('.');
+              $("#difficulty").html(splitParts[0] + '.<span class="decimal">' + splitParts[1] + '</span>');
+            }
 
             if (json.difficultyHybrid == null || json.difficultyHybrid == '')
               $("#difficultyHybrid").html('-');
+            else if (json.difficultyHybrid.indexOf('.') === -1)
+              $("#difficultyHybrid").text(json.difficultyHybrid);
             else {
               splitParts = json.difficultyHybrid.split('.');
               $("#difficultyHybrid").html(splitParts[0] + '.<span class="decimal">' + splitParts[1] + '</span>');
@@ -469,6 +632,8 @@ html(lang='en')
 
             if (json.hashrate == null || json.hashrate == '' || json.hashrate == '-')
               $("#hashrate").html('-');
+            else if (json.hashrate.indexOf('.') === -1)
+              $("#hashrate").text(json.hashrate);
             else {
               splitParts = json.hashrate.split('.');
               $("#hashrate").html(splitParts[0] + '.<span class="decimal">' + splitParts[1] + '</span>');
@@ -502,7 +667,7 @@ html(lang='en')
         const maxSavedRecords = #{settings.network_history.max_saved_records};
         function update_network_charts() {
           $.ajax({
-            url: '/ext/getnetworkchartdata',
+            url: explorerBaseUrl + '/ext/getnetworkchartdata',
             success: function(result) {
               if (typeof populateNethashChart !== 'undefined' && typeof populateNethashChart === 'function')
                 populateNethashChart(result);
@@ -1382,6 +1547,8 @@ html(lang='en')
     - var bodyContainerClasses = [];
     - var mainContainerClasses = [];
     - var mainContainerChildClasses = [];
+    if active != null && active != ''
+      - bodyClasses.push('page-' + active);
     if settings.shared_pages.page_header.menu == 'side'
       - bodyContainerClasses.push('transition05s');
       - bodyContainerClasses.push('displayFlex');
@@ -1435,42 +1602,46 @@ html(lang='en')
                 button.navbar-toggler(type='button', data-bs-toggle='collapse', data-bs-target='#navbar-collapse', aria-controls='navbar-collapse', aria-expanded='false', aria-label='Toggle navigation')
                   span.navbar-toggler-icon
             if settings.shared_pages.page_header.home_link == 'title'
-              a.navbar-brand(href='/', style='order:-1;') #{settings.shared_pages.page_title}
+              a.navbar-brand(href=siteHomeUrl, style='order:-1;') #{settings.shared_pages.page_title}
             else if settings.shared_pages.page_header.home_link == 'coin'
-              a.navbar-brand(href='/', style='order:-1;') #{settings.coin.name}
+              a.navbar-brand(href=siteHomeUrl, style='order:-1;') #{settings.coin.name}
             else if settings.shared_pages.page_header.home_link == 'logo'
-              a(href='/', alt=settings.coin.name + ' Home', title=settings.coin.name + ' Home', style='order:-1;', data-bs-toggle='tooltip', data-bs-placement='bottom')
-                img.logo-main(src=(settings.shared_pages.page_header.home_link_logo == null || settings.shared_pages.page_header.home_link_logo == '' ? settings.shared_pages.logo : settings.shared_pages.page_header.home_link_logo), style='margin:0;max-height:' + settings.shared_pages.page_header.home_link_logo_height + 'px;')
+              if active != 'home'
+                a(href=siteHomeUrl, alt=settings.coin.name + ' Home', title=settings.coin.name + ' Home', style='order:-1;', data-bs-toggle='tooltip', data-bs-placement='bottom')
+                  img.logo-main(src=resolveAssetUrl(settings.shared_pages.page_header.home_link_logo == null || settings.shared_pages.page_header.home_link_logo == '' ? settings.shared_pages.logo : settings.shared_pages.page_header.home_link_logo), style='margin:0;max-height:' + settings.shared_pages.page_header.home_link_logo_height + 'px;')
+              else
+                span.home-header-spacer
             .collapse.navbar-collapse(id='navbar-collapse')
               ul.navbar-nav(style='width:100%;')
                 li#home.nav-item
-                  a.nav-link(href='/')
+                  a.nav-link(href=explorerPath('/'))
                     span.fa-solid.fa-cubes
                     span.margin-left-5 #{settings.localization.menu_explorer}
                 if settings.blockchain_specific.heavycoin.enabled == true && settings.blockchain_specific.heavycoin.reward_page.enabled == true
                   li#reward.nav-item
-                    a.nav-link(href='/reward')
+                    a.nav-link(href=explorerPath('/reward'))
                       span.fa-solid.fa-star
                       span.margin-left-5 #{settings.localization.menu_reward}
                 if settings.masternodes_page.enabled == true
                   li#masternodes.nav-item
-                    a.nav-link(href='/masternodes')
+                    a.nav-link(href=explorerPath('/masternodes'))
                       span.fa-solid.fa-share-nodes
                       span.margin-left-5 Masternodes
                 if settings.movement_page.enabled == true
                   li#movement.nav-item
-                    a.nav-link(href='/movement')
+                    a.nav-link(href=explorerPath('/movement'))
                       span.fa-regular.fa-money-bill-1
                       span.margin-left-5 #{settings.localization.menu_movement}
                 if settings.network_page.enabled == true && (settings.network_page.connections_table.enabled == true || settings.network_page.addnodes_table.enabled == true || settings.network_page.onetry_table.enabled == true)
                   li#network.nav-item
-                    a.nav-link(href='/network')
+                    a.nav-link(href=explorerPath('/network'))
                       span.fa-solid.fa-network-wired
                       span.margin-left-5 #{settings.localization.menu_network}
                 if settings.richlist_page.enabled == true
                   li#richlist.nav-item
-                    a.nav-link(href='/richlist')
-                      span.fa-brands.fa-btc
+                    a.nav-link(href=explorerPath('/richlist'))
+                      span.nav-icon
+                        +richlistIcon()
                       span.margin-left-5 #{settings.localization.menu_richlist}
                 if settings.markets_page.enabled == true
                   if settings.markets_page.show_market_dropdown_menu == true && settings.market_count > 1
@@ -1482,7 +1653,7 @@ html(lang='en')
                         each mkt in settings.market_data
                           if mkt != null && mkt.id != null
                             each pair in mkt.trading_pairs
-                              a.dropdown-item(href='/markets/' + mkt.id + '/' + pair.pair)
+                              a.dropdown-item(href=explorerPath('/markets/' + mkt.id + '/' + pair.pair))
                                 if pair.isAlt == true
                                   if mkt.alt_logo != null && mkt.alt_logo != ''
                                     img.market-logo(src='data:image/png;base64,' + mkt.alt_logo, title=mkt.alt_name + ' (' + pair.pair + ')', alt=mkt.alt_name + ' (' + pair.pair + ')')
@@ -1499,30 +1670,25 @@ html(lang='en')
                                     span.small.fw-normal  (#{pair.pair})
                   else
                     li#markets.nav-item
-                      a.nav-link(href='/markets/' + settings.markets_page.default_exchange.exchange_name + '/' + settings.markets_page.default_exchange.trading_pair)
+                      a.nav-link(href=explorerPath('/markets/' + settings.markets_page.default_exchange.exchange_name + '/' + settings.markets_page.default_exchange.trading_pair))
                         span.fa-solid.fa-chart-line
                         span.margin-left-5 #{settings.localization.menu_markets}
                 if settings.api_page.enabled == true
                   li#info.nav-item
-                    a.nav-link(href='/info')
+                    a.nav-link(href=explorerPath('/info'))
                       span.fa-solid.fa-circle-info
                       span.margin-left-5 #{settings.localization.menu_api}
                 if settings.claim_address_page.show_header_menu == true && settings.claim_address_page.enabled == true
                   li#claim-address.nav-item
-                    a.nav-link(href='/claim')
+                    a.nav-link(href=explorerPath('/claim'))
                       span.fa-regular.fa-address-card
                       span.margin-left-5 #{settings.localization.menu_claim_address}
-                if settings.orphans_page.enabled == true
-                  li#orphans.nav-item
-                    a.nav-link(href='/orphans')
-                      span.fa-regular.fa-rectangle-xmark
-                      span.margin-left-5 #{settings.localization.menu_orphans}
                 each plugin in settings.plugins.allowed_plugins
                   if plugin != null && plugin.enabled == true && plugin.pages != null && plugin.pages.length > 0
                     each pg in plugin.pages
                       if pg.enabled == true && pg.show_header_menu == true
                         li.nav-item(id=pg.page_id)
-                          a.nav-link(href='/' + pg.route_suffix)
+                          a.nav-link(href=explorerPath('/' + pg.route_suffix))
                             span(class=pg.menu_fontawesome_class)
                             span.margin-left-5=pg.menu_title
             if settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'inside-header'
@@ -1530,36 +1696,29 @@ html(lang='en')
                 button#search-header-button(data-bs-toggle='collapse', data-bs-target='#search-navbar-collapse')
                   span.fa-solid.fa-magnifying-glass
         if settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'inside-header'
-          div#search-navbar-collapse.collapse
+          div#search-navbar-collapse.collapse.defcoin-header-search
             div.navbar-nav.align-items-lg-center.search-box-custom(style='width:100%;')
-              form.form-inline.col-12.d-flex.justify-content-center(method='post', action='/search')
-                div.input-group.input-group-md.search-for(style='width:100%;')
+              form.form-inline.col-12.d-flex.justify-content-center(method='post', action=explorerPath('/search'))
+                div.input-group.input-group-md.search-for.defcoin-header-search-group(style='width:100%;')
                   input.form-control(type='text', name='search', placeholder=settings.localization.ex_search_message)
                   button.btn.btn-success.btn-sm(type='submit') #{settings.localization.ex_search_button}
     else
       header#main-header-side.side-header.navbar(class=headerClasses)
         div#inner-header-side.navbar.navbar-expand-lg
           div.container
-            if settings.shared_pages.page_header.home_link == 'title'
-              a.navbar-brand.nav-link(href='/', style='order:-1;') #{settings.shared_pages.page_title}
-            else if settings.shared_pages.page_header.home_link == 'coin'
-              a.navbar-brand.nav-link(href='/', style='order:-1;') #{settings.coin.name}
-            else if settings.shared_pages.page_header.home_link == 'logo'
-              a(href='/', alt=settings.coin.name + ' Home', title=settings.coin.name + ' Home', style='order:-1;', data-bs-toggle='tooltip', data-bs-placement='bottom')
-                img.logo-main(src=(settings.shared_pages.page_header.home_link_logo == null || settings.shared_pages.page_header.home_link_logo == '' ? settings.shared_pages.logo : settings.shared_pages.page_header.home_link_logo), style='margin:0;max-height:' + settings.shared_pages.page_header.home_link_logo_height + 'px;')
             a#side-header-toggle.side-header-toggle(href='#')
               span.fa-solid.fa-bars(alt='Expand Menu', title='Expand Menu', data-bs-toggle='tooltip', data-bs-placement='right', style='width: 24px;')
             if settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'inside-header'
               span#search-header-span(alt='Search', title='Search', data-bs-toggle='tooltip', data-bs-placement='left')
                 button#search-header-button(data-bs-toggle='collapse', data-bs-target='#search-navbar-collapse')
                   span.fa-solid.fa-magnifying-glass
-        if settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'inside-header'
-          div#search-navbar-collapse.collapse.flexGrow1
-            div.navbar-nav.align-items-lg-center.search-box-custom(style='width:100%;')
-              form.form-inline.col-12.d-flex.justify-content-center(method='post', action='/search')
-                div.input-group.input-group-md.search-for(style='width:100%;')
-                  input.form-control(type='text', name='search', placeholder=settings.localization.ex_search_message)
-                  button.btn.btn-success.btn-sm(type='submit') #{settings.localization.ex_search_button}
+            if settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'inside-header'
+              div#search-navbar-collapse.collapse.flexGrow1.defcoin-header-search
+                div.navbar-nav.align-items-lg-center.search-box-custom(style='width:100%;')
+                  form.form-inline.col-12.d-flex.justify-content-center(method='post', action=explorerPath('/search'))
+                    div.input-group.input-group-md.search-for.defcoin-header-search-group(style='width:100%;')
+                      input.form-control(type='text', name='search', placeholder=settings.localization.ex_search_message)
+                      button.btn.btn-success.btn-sm(type='submit') #{settings.localization.ex_search_button}
     div#body-container(class=bodyContainerClasses)
       if settings.shared_pages.page_header.menu == 'side'
         div#side-nav-bar.navbar(class=sideBarClasses)
@@ -1568,34 +1727,47 @@ html(lang='en')
               li#sidebar-offcanvas-close.nav-item.text-end
                 a.nav-link.d-inline(href='#', alt='Close Menu', title='Close Menu', data-bs-toggle='tooltip', data-bs-placement='right')
                   span.fa-2xl.fa-regular.fa-rectangle-xmark(type='button', data-bs-dismiss='offcanvas' aria-label='Close')
-              li#home.nav-item(alt=settings.localization.menu_explorer, title=settings.localization.menu_explorer, data-bs-toggle='tooltip', data-bs-placement='right')
-                a.nav-link(href='/')
+              li#pool.nav-item(alt='Defcoin Pool', title='Defcoin Pool', data-bs-toggle='tooltip', data-bs-placement='right')
+                a.nav-link(href=poolBaseUrl, aria-label='Defcoin Pool')
+                  span.nav-icon
+                    +poolIcon()
+                  span.margin-left-5 Defcoin Pool
+              li#mining-stats.nav-item(alt='Miner Stats', title='Miner Stats', data-bs-toggle='tooltip', data-bs-placement='right')
+                a.nav-link(href=explorerPath('/mining-stats'), aria-label='Miner Stats')
+                  span.nav-icon
+                    +miningStatsIcon()
+                  span.margin-left-5 Miner Stats
+              li.nav-divider(role='presentation')
+                hr.sidebar-divider
+              li#home.nav-item(alt='Explorer: eIquidus', title='Explorer: eIquidus', data-bs-toggle='tooltip', data-bs-placement='right')
+                a.nav-link(href=explorerPath('/'))
                   span.nav-icon.fa-solid.fa-cubes
-                  span.margin-left-5 #{settings.localization.menu_explorer}
+                  span.margin-left-5 Explorer: eIquidus
               if settings.blockchain_specific.heavycoin.enabled == true && settings.blockchain_specific.heavycoin.reward_page.enabled == true
                 li#reward.nav-item(alt=settings.localization.menu_reward, title=settings.localization.menu_reward, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/reward')
+                  a.nav-link(href=explorerPath('/reward'))
                     span.nav-icon.fa-solid.fa-star
                     span.margin-left-5 #{settings.localization.menu_reward}
               if settings.masternodes_page.enabled == true
                 li#masternodes.nav-item(alt="Masternodes", title="Masternodes", data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/masternodes')
+                  a.nav-link(href=explorerPath('/masternodes'))
                     span.nav-icon.fa-solid.fa-share-nodes
                     span.margin-left-5 Masternodes
               if settings.movement_page.enabled == true
                 li#movement.nav-item(alt=settings.localization.menu_movement, title=settings.localization.menu_movement, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/movement')
+                  a.nav-link(href=explorerPath('/movement'))
                     span.nav-icon.fa-regular.fa-money-bill-1
                     span.margin-left-5 #{settings.localization.menu_movement}
               if settings.network_page.enabled == true && (settings.network_page.connections_table.enabled == true || settings.network_page.addnodes_table.enabled == true || settings.network_page.onetry_table.enabled == true)
                 li#network.nav-item(alt=settings.localization.menu_network, title=settings.localization.menu_network, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/network')
+                  a.nav-link(href=explorerPath('/network'))
                     span.nav-icon.fa-solid.fa-network-wired
                     span.margin-left-5 #{settings.localization.menu_network}
               if settings.richlist_page.enabled == true
                 li#richlist.nav-item(alt=settings.localization.menu_richlist, title=settings.localization.menu_richlist, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/richlist')
-                    span.nav-icon.fa-brands.fa-btc
+                  a.nav-link(href=explorerPath('/richlist'))
+                    span.nav-icon
+                      +richlistIcon()
                     span.margin-left-5 #{settings.localization.menu_richlist}
               if settings.markets_page.enabled == true
                 if settings.markets_page.show_market_dropdown_menu == true && settings.market_count > 1
@@ -1607,7 +1779,7 @@ html(lang='en')
                       each mkt in settings.market_data
                         if mkt != null && mkt.id != null
                           each pair in mkt.trading_pairs
-                            a.dropdown-item(href='/markets/' + mkt.id + '/' + pair.pair)
+                            a.dropdown-item(href=explorerPath('/markets/' + mkt.id + '/' + pair.pair))
                               if pair.isAlt == true
                                 if mkt.alt_logo != null && mkt.alt_logo != ''
                                   img.market-logo(src='data:image/png;base64,' + mkt.alt_logo, title=mkt.alt_name + ' (' + pair.pair + ')', alt=mkt.alt_name + ' (' + pair.pair + ')')
@@ -1624,70 +1796,71 @@ html(lang='en')
                                   span.small.fw-normal  (#{pair.pair})
                 else
                   li#markets.nav-item(alt=settings.localization.menu_markets, title=settings.localization.menu_markets, data-bs-toggle='tooltip', data-bs-placement='right')
-                    a.nav-link(href='/markets/' + settings.markets_page.default_exchange.exchange_name + '/' + settings.markets_page.default_exchange.trading_pair)
+                    a.nav-link(href=explorerPath('/markets/' + settings.markets_page.default_exchange.exchange_name + '/' + settings.markets_page.default_exchange.trading_pair))
                       span.nav-icon.fa-solid.fa-chart-line
                       span.margin-left-5 #{settings.localization.menu_markets}
               if settings.api_page.enabled == true
                 li#info.nav-item(alt=settings.localization.menu_api, title=settings.localization.menu_api, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/info')
+                  a.nav-link(href=explorerPath('/info'))
                     span.nav-icon.fa-solid.fa-circle-info
                     span.margin-left-5 #{settings.localization.menu_api}
               if settings.claim_address_page.show_header_menu == true && settings.claim_address_page.enabled == true
                 li#claim-address.nav-item(alt=settings.localization.menu_claim_address, title=settings.localization.menu_claim_address, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/claim')
+                  a.nav-link(href=explorerPath('/claim'))
                     span.nav-icon.fa-regular.fa-address-card
                     span.margin-left-5 #{settings.localization.menu_claim_address}
-              if settings.orphans_page.enabled == true
-                li#orphans.nav-item(alt=settings.localization.menu_orphans, title=settings.localization.menu_orphans, data-bs-toggle='tooltip', data-bs-placement='right')
-                  a.nav-link(href='/orphans')
-                    span.nav-icon.fa-regular.fa-rectangle-xmark
-                    span.margin-left-5 #{settings.localization.menu_orphans}
               each plugin in settings.plugins.allowed_plugins
                 if plugin != null && plugin.enabled == true && plugin.pages != null && plugin.pages.length > 0
                   each pg in plugin.pages
                     if pg.enabled == true && pg.show_header_menu == true
                       li.nav-item(id=pg.page_id, alt=pg.menu_title, title=pg.menu_title, data-bs-toggle='tooltip', data-bs-placement='right')
-                        a.nav-link(href='/' + pg.route_suffix)
+                        a.nav-link(href=explorerPath('/' + pg.route_suffix))
                           span.nav-icon(class=pg.menu_fontawesome_class)
                           span.margin-left-5=pg.menu_title
+              li.nav-divider.nav-divider-bottom(role='presentation')
+                hr.sidebar-divider
+              li#calc.nav-item(alt='Reward Calculator', title='Reward Calculator', data-bs-toggle='tooltip', data-bs-placement='right')
+                a.nav-link(href=calcBaseUrl, aria-label='Reward Calculator')
+                  span.nav-icon
+                    +calculatorCrownIcon()
+                  span.margin-left-5 Reward Calculator
+              li#qrgen.nav-item(alt='QR Generator', title='QR Generator', data-bs-toggle='tooltip', data-bs-placement='right')
+                a.nav-link(href=qrgenBaseUrl, aria-label='QR Generator')
+                  span.nav-icon
+                    +qrIcon()
+                  span.margin-left-5 QR Generator
+              li#history.nav-item(alt='History', title='History', data-bs-toggle='tooltip', data-bs-placement='right')
+                a.nav-link(href=historyBaseUrl, aria-label='History')
+                  span.nav-icon
+                    +clockHistoryIcon()
+                  span.margin-left-5 History
         div#side-offcanvas.offcanvas.offcanvas-start(tabindex='-1')
           div.offcanvas-body.navbar(class=sideBarClasses)
       div#main-container(class=mainContainerClasses)
         div#main-child-container(class=mainContainerChildClasses)
+          block page_intro
           if showSync != null && showSync == true
             .col-lg-12
-              .alert.alert-warning
-                .cardSpacer
-                  span.fa-solid.fa-triangle-exclamation(style='margin-right:5px;')
-                  strong #{settings.localization.ex_warning}
-                div #{settings.localization.initial_index_alert}
+              .alert.alert-warning.sync-status-banner(role='alert')
+                span.fa-solid.fa-triangle-exclamation.sync-status-icon
+                strong #{settings.localization.ex_warning}
+                span.sync-status-text #{settings.localization.initial_index_alert}
           if showPanels == true || (settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'below-header')
             .col-lg-12
               if showPanels == true
-                .row.text-center.d-flex.justify-content-center
-                  div(class="col-lg-2 col-lg-offset-" + settings.paneloffset)
-                    - if (settings.panel1 != '') {
-                      .card.card-default.border-0.d-lg-block.d-block.cardSpacer(id='pnlOne')
-                    - }
-                  - if (settings.panel2 != '') {
-                    .col-lg-2
-                      .card.card-default.border-0.d-lg-block.d-block.cardSpacer(id='pnlTwo')
-                  - }
-                  - if (settings.panel3 != '') {
-                    .col-lg-2
-                      .card.card-default.border-0.d-lg-block.d-block.cardSpacer(id='pnlThree')
-                  - }
-                  - if (settings.panel4 != '') {
-                    .col-lg-2
-                      .card.card-default.border-0.d-lg-block.d-block.cardSpacer(id='pnlFour')
-                  - }
-                  - if (settings.panel5 != '') {
-                  .col-lg-2
-                    .card.card-default.border-0.d-lg-block.d-block.cardSpacer(id='pnlFive')
-                  - }
+                - var panelSlots = [];
+                - if (settings.panel1 != '' && !(active == 'home' && settings.panel1 == 'logo_panel')) panelSlots.push({ id: 'pnlOne', panel: settings.panel1 });
+                - if (settings.panel2 != '' && !(active == 'home' && settings.panel2 == 'logo_panel')) panelSlots.push({ id: 'pnlTwo', panel: settings.panel2 });
+                - if (settings.panel3 != '' && !(active == 'home' && settings.panel3 == 'logo_panel')) panelSlots.push({ id: 'pnlThree', panel: settings.panel3 });
+                - if (settings.panel4 != '' && !(active == 'home' && settings.panel4 == 'logo_panel')) panelSlots.push({ id: 'pnlFour', panel: settings.panel4 });
+                - if (settings.panel5 != '' && !(active == 'home' && settings.panel5 == 'logo_panel')) panelSlots.push({ id: 'pnlFive', panel: settings.panel5 });
+                .header-panels-row
+                  each slot in panelSlots
+                    .header-panel-col(class=(slot.panel == 'logo_panel' ? 'header-panel-col-logo' : ''))
+                      .card.card-default.border-0.d-block.cardSpacer(id=slot.id)
               if settings.shared_pages.page_header.search.enabled == true && settings.shared_pages.page_header.search.position.toString().toLowerCase() == 'below-header'
                 div#search-row.row.text-center
-                  form.form-inline.col-12.d-flex.justify-content-center(method='post', action='/search')
+                  form.form-inline.col-12.d-flex.justify-content-center(method='post', action=explorerPath('/search'))
                     #index-search.form-group.d-flex.justify-content-center
                       input.form-control(type='text', name='search', placeholder=settings.localization.ex_search_message, style='min-width:80%;margin-right:5px;')
                       button.btn.btn-success(type='submit') #{settings.localization.ex_search_button}
@@ -1709,8 +1882,8 @@ html(lang='en')
                   include ./includes/difficulty_chart.pug
           block content
     div#footer-container(class=footerClasses, role='navigation')
-      .col-4.navbar-nav
-        ul.nav.justify-content-left
+      .col-12.col-md-4.navbar-nav.mb-1.mb-md-0
+        ul.nav.justify-content-center.justify-content-md-start
           each social in settings.shared_pages.page_footer.social_links
             if social.enabled
               li.float-start
@@ -1719,12 +1892,12 @@ html(lang='en')
                     span(class='vertical-align-middle ' + social.fontawesome_class)
                   else
                     img(class='vertical-align-middle', src=social.image_path)
-      .col-4.navbar-nav
+      .col-12.col-md-4.navbar-nav.mb-1.mb-md-0
         ul.nav.justify-content-center
           li.text-center
-            p
-              | !{settings.shared_pages.page_footer.powered_by_text.replace('{explorer_version}', settings.explorer_version + (settings.revision == null || settings.revision == '' ? '' : `-${settings.revision}`))}
-      .col-4.navbar-nav
-        ui.nav.justify-content-end
-          label#lblBlockcount.badge.nav-link.border-0.float-end
-          label#lblConnections.badge.nav-link.border-0.float-end
+            p.footer-version-copy.mb-0
+              | !{settings.shared_pages.page_footer.powered_by_text.replace('{explorer_version}', settings.explorer_version + (settings.revision == null || settings.revision == '' ? '' : `-${settings.revision}`) + ' +2026.04.16 mods')}
+      .col-12.col-md-4.navbar-nav
+        .nav.justify-content-center.justify-content-md-end.d-flex.flex-column.flex-md-row.align-items-center.align-items-md-end.footer-status-links
+          a#lblBlockcount.badge.nav-link.border-0.float-end(href=explorerPath('/'), aria-label='Open Defcoin block explorer')
+          a#lblConnections.badge.nav-link.border-0.float-end(href=explorerPath('/network'), aria-label='Open Defcoin network peers page')

@@ -10,6 +10,48 @@ Written in node.js and mongodb, eIquidus is the most stable, secure, customizabl
 
 ![Homepage](public/img/screenshots/homepage-1-103-0.png)
 
+### Defcoin DC903 operator notes, May 2026
+
+This server carries local Defcoin changes in addition to upstream eIquidus.
+The live service is `eiquidus-primary.service` and the production checkout is
+`/home/dfcpool/eiquidus-test`.
+
+Network peer table changes live in `views/network.pug`, `app.js`, and the CSS
+files under `public/css/`. These are Node/Pug/CSS changes and do not require a
+compiled wallet rebuild. Validate with `node --check app.js` and a Pug compile,
+then restart `eiquidus-primary.service`.
+
+The Network page now presents peer rows using Defcoin/Litecoin-style labels:
+Node Id., Dir., IP Address, Port, Ping, Sent, Rec'd, User Agent, Magic, Version,
+Svcs, DNS Name, and Domain Alias. The page uses the actual `p2p_magic` reported
+for each peer, so `fbc0b6db` means legacy Defcoin/Litecoin-family packet magic
+and `defc014e` means the 2026 Defcoin packet magic. IP sorting treats IPv4 and
+IPv6 as numeric addresses, with IPv4 grouped first. IPv4 display uses
+right-aligned octets; IPv6 display keeps the compressed address form.
+
+Do not build server-side native components with high parallelism on this small
+Linode. If a compile is required, use a single job, for example `make -j1`, so
+the build does not exhaust memory or make SSH unavailable.
+
+### Defcoin security candidate, September 2026
+
+The recovered dc903 candidate adds bounded request/RPC handling, safe public
+serialization, dependency updates, read-only public mining-stat routes,
+singleflight/bounded chart history, and production credential checks. Keep
+`api_cmds.use_rpc=true` in production; the insecure legacy internal-HTTP RPC
+mode is rejected during production preflight. Paper-wallet key generation
+requires a successful Web Crypto `getRandomValues` call and fails closed when
+secure randomness is unavailable.
+
+The faucet implementation is deliberately not registered as a route or menu
+item and must remain unavailable. It is not approved for payout use without a
+separate dedicated wallet/funding source, atomic claim reservation, corrected
+ban predicates, and a secret-free public status object.
+
+Before deployment, run the focused security/explorer tests, dependency audit,
+secret scan, Pug compilation, route snapshots, and controlled miner/page parity
+gates documented in the private dc903 operations repository.
+
 ### Crowdfunding Program
 
 Exor accepts targeted donations in an effort to crowdfund various feature and improvement requests for the block explorer and other Exor-related projects. [Browse the list of unfunded tasks](https://exor.io/tasklist/hide-completed/hide-funded/show-unfunded/) and send Exor coins to the correct funding address to help meet the funding goal for tasks that you would like to see developed. Once the funding goal is met, Exor developers will begin work on the task asap and will remain a top priority until completed. If you are a software developer and would like to work on funded tasks in exchange for payment in EXOR, please get in touch with us using one of the [Developer Contact](#developer-contact) links below.
@@ -49,9 +91,6 @@ Table of Contents
   - [Start Explorer Using PM2 and Log Viewer](#start-explorer-using-pm2-and-log-viewer)
   - [Stop Explorer Using PM2 (Recommended for Production)](#stop-explorer-using-pm2-recommended-for-production)
   - [Reload Explorer Using PM2 (Recommended for Production)](#reload-explorer-using-pm2-recommended-for-production)
-  - [Start Explorer Using Forever (Alternate Production Option)](#start-explorer-using-forever-alternate-production-option)
-  - [Stop Explorer Using Forever (Alternate Production Option)](#stop-explorer-using-forever-alternate-production-option)
-  - [Reload Explorer Using Forever (Alternate Production Option)](#reload-explorer-using-forever-alternate-production-option)
 - [Syncing Databases with the Blockchain](#syncing-databases-with-the-blockchain)
   - [Commands for Manually Syncing Databases](#commands-for-manually-syncing-databases)
   - [Sample Crontab](#sample-crontab)
@@ -452,58 +491,6 @@ or (useful for crontab):
 
 ```
 cd /path/to/explorer && /path/to/pm2 reload explorer
-```
-
-#### Start Explorer Using Forever (Alternate Production Option)
-
-[Forever](https://www.npmjs.com/package/forever) is an alternative to PM2 which is another useful Node.js module that is used to always keep the explorer alive and running even if the explorer crashes or stops. Once you have configured the explorer to work properly in a production environment, forever can be used as an alternative to PM2 to start and stop the explorer instead of `npm start` and `npm stop` to keep the explorer constantly running without the need to always keep a terminal window open.
-
-You can start the explorer using forever with one of the following terminal cmds (be sure to run from within the explorer directory):
-
-```
-npm run start-forever
-```
-
-or (useful for crontab):
-
-```
-cd /path/to/explorer && /path/to/npm run prestart "forever"
-```
-
-**NOTE:** Use the following cmd to find the install path for forever (Linux only):
-
-```
-which forever
-```
-
-#### Stop Explorer Using Forever (Alternate Production Option)
-
-To stop the explorer when it is running via forever you can use one of the following terminal cmds (be sure to run from within the explorer directory):
-
-```
-npm run stop-forever
-```
-
-or (useful for crontab):
-
-```
-cd /path/to/explorer && /path/to/forever stop "explorer"
-```
-
-#### Reload Explorer Using Forever (Alternate Production Option)
-
-The explorer can be stopped and restarted in a single cmd when it is running via forever, which is often necessary after updating the explorer code for example. Use one of the following terminal cmds to reload the explorer (be sure to run from within the explorer directory):
-
-**NOTE:** The explorer will be inaccessible for a few seconds while the restart is being performed.
-
-```
-npm run reload-forever
-```
-
-or (useful for crontab):
-
-```
-cd /path/to/explorer && /path/to/forever restart "explorer"
 ```
 
 ### Syncing Databases with the Blockchain
@@ -967,10 +954,6 @@ This error can appear when you try to run the explorer on a port number lower th
 **Error: Callback was already called**
 
 This error typically means there is some kind of connection issue between the explorer and the wallet daemon. The most common mistake that can cause this error is by configuring the wallet's P2P port # instead of the RPC port # in the settings.json. This can also happen if your wallet is not set up to accept RPC connections.
-
-**Warning: Accessing non-existent property 'padLevels' of module exports inside circular dependency**
-
-This warning is currently displayed when starting or stopping the explorer using the `forever` module. The good news is that this warning can safely be ignored although it can be confusing as to why it is displayed at all. This is a deep rooted issue with `forever` that is actively being discussed [here](https://github.com/foreversd/forever/issues/1077). Long story short is that `forever` depends on a number of outdated dependencies that require certain parts of the code to be rewritten and so far it has not been officially resolved yet. `Forever` is still included as an option for those who are used to using it although we recommend using `pm2` to run your production explorer since it is more modern and can do everything `forever` does and more.
 
 ### Donations / Support Us
 

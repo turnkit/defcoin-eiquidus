@@ -927,7 +927,8 @@ function process_peer_object(peerList, peer) {
   table_types.forEach(function (table_type) {
     // check if this table type is enabled
     if (table_type.enabled) {
-      const normalized_port_filter = (parseInt(table_type.port_filter) || -1);
+      const parsed_port_filter = parseInt(table_type.port_filter);
+      const normalized_port_filter = Number.isNaN(parsed_port_filter) ? -1 : parsed_port_filter;
       let add_peer = true;
 
       // filter out this peer in the following scenarios:
@@ -1037,6 +1038,17 @@ function bulkUpsertPeers(peerList, cb) {
   processNextBatch();
 }
 
+function removeStalePeers(syncStartTime, cb) {
+  Peers.deleteMany({
+    createdAt: { $lt: syncStartTime }
+  }).then(() => {
+    return cb();
+  }).catch((err) => {
+    console.log(err);
+    return cb();
+  });
+}
+
 function removeDuplicatePeers(cb) {
   // remove duplicate peers from the connections table_type
   removeDuplicatePeersByType('C', settings.network_page.connections_table.enabled, settings.network_page.connections_table.port_filter, function() {
@@ -1051,7 +1063,8 @@ function removeDuplicatePeers(cb) {
 }
 
 function removeDuplicatePeersByType(table_type, enabled, port_filter, cb) {
-  const normalized_port_filter = (parseInt(port_filter) || -1);
+  const parsed_port_filter = parseInt(port_filter);
+  const normalized_port_filter = Number.isNaN(parsed_port_filter) ? -1 : parsed_port_filter;
 
   // check if this table_type is enabled and the port filter is set to -1 which indicates that duplicates should be removed
   if (enabled && normalized_port_filter == -1) {
@@ -1392,6 +1405,8 @@ if (lib.is_locked([database]) == false) {
           }
         });
       } else if (database == 'peers') {
+        const peerSyncStarted = new Date();
+
         // get peer data from the getpeerinfo wallet cmd
         lib.get_peerinfo(function(body) {
           // check if data was returned
@@ -1402,6 +1417,8 @@ if (lib.is_locked([database]) == false) {
             async.timesSeries(body.length, function(i, loop) {
               let address = body[i].addr;
               let port = null;
+              const peerProtocol = (parseInt(body[i].version) || 0).toString();
+              const peerVersion = ((body[i].subver || '') + '').replace(/\//g, '').trim();
 
               // check if the port number is included in the peer address data
               if (occurrences(address, ':') == 1 || occurrences(address, ']:') == 1) {
@@ -1416,6 +1433,11 @@ if (lib.is_locked([database]) == false) {
                 address = address.replace('[', '').replace(']', '');
               }
 
+              if (peerProtocol == '0' || peerVersion == '') {
+                console.log('Skip incomplete peer %s%s [%s/%s]', address, (port == null || port == '' ? '' : ':' + port.toString()), (i + 1).toString(), body.length.toString());
+                return loop();
+              }
+
               // try to find this peer in the local database from the last peer sync
               db.find_peer(address, port, function(peer) {
                 // check if the peer was found in the local database
@@ -1424,8 +1446,8 @@ if (lib.is_locked([database]) == false) {
                   const newPeers = process_peer_object(peerList, {
                     address: address,
                     port: port,
-                    protocol: peer.protocol,
-                    version: peer.version,
+                    protocol: peerProtocol,
+                    version: peerVersion,
                     country: peer.country,
                     country_code: peer.country_code,
                     ipv6: (address && address.length > 15)
@@ -1453,8 +1475,8 @@ if (lib.is_locked([database]) == false) {
                   const newPeers = process_peer_object(peerList, {
                     address: address,
                     port: port,
-                    protocol: body[i].version,
-                    version: body[i].subver.replace('/', '').replace('/', ''),
+                    protocol: peerProtocol,
+                    version: peerVersion,
                     ipv6: (address && address.length > 15)
                   });
 
@@ -1516,15 +1538,17 @@ if (lib.is_locked([database]) == false) {
               bulkUpsertPeers(peerList, function() {
                 // remove duplicates if necessary
                 removeDuplicatePeers(function() {
-                  // update network_last_updated value
-                  db.update_last_updated_stats(settings.coin.name, { network_last_updated: Math.floor(new Date() / 1000) }, function(cb) {
-                    // check if the script stopped prematurely
-                    if (stopSync)
-                      console.log('Peer sync was stopped prematurely');
-                    else
-                      console.log('Peer sync complete');
+                  removeStalePeers(peerSyncStarted, function() {
+                    // update network_last_updated value
+                    db.update_last_updated_stats(settings.coin.name, { network_last_updated: Math.floor(new Date() / 1000) }, function(cb) {
+                      // check if the script stopped prematurely
+                      if (stopSync)
+                        console.log('Peer sync was stopped prematurely');
+                      else
+                        console.log('Peer sync complete');
 
-                    exit(stopSync ? 1 : 0);
+                      exit(stopSync ? 1 : 0);
+                    });
                   });
                 });
               });

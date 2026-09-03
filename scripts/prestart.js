@@ -35,7 +35,7 @@ if (!(nodeVersionMajor > minNodeVersionMajor || (nodeVersionMajor == minNodeVers
 
 function check_arguments_passed(cb) {
   const arguments = (process.argv[2] == null ? '' : process.argv[2]).split(' ');
-  const pidName = (arguments != null && arguments.length > 0 && arguments[0] != null && arguments[0] != '' && (arguments[0] == 'pm2' || arguments[0] == 'forever') ? arguments[0] : 'node');
+  const pidName = (arguments != null && arguments.length > 0 && arguments[0] == 'pm2' ? arguments[0] : 'node');
   const node_env = (arguments != null && arguments.length > 0 && arguments[1] != null && arguments[1] != '' ? arguments[1] : 'development');
 
   // check 1st argument
@@ -66,25 +66,6 @@ function check_arguments_passed(cb) {
             return cb(pidName, node_env);
         });
         break;
-      case 'forever':
-        // run a cmd to check if forever is installed
-        exec('npm list forever', (err, stdout, stderr) => {
-          // split stdout string by new line
-          var splitResponse = (stdout == null ? '' : stdout.trim()).split('\n').filter(element => element);
-
-          // check if the cmd result contains an @ symbol
-          if (splitResponse[1].indexOf('@') == -1) {
-            console.log(`${settings.localization.installing_module.replace('{1}', 'forever')}.. ${settings.localization.please_wait}..`);
-            
-            // install forever
-            exec('npm install forever', (err, stdout, stderr) => {
-              // always return the pidName and node_env value for now without checking results
-              return cb(pidName, node_env);
-            });
-          } else
-            return cb(pidName, node_env);
-        });
-        break;
       default:
         // argument not passed or unknown argument
         return cb(pidName, node_env);
@@ -96,6 +77,8 @@ function check_arguments_passed(cb) {
 // check if arguments were passed into this script
 check_arguments_passed(function(pidName, node_env) {
   const execSync = require('child_process').execSync;
+
+  settings.assertProductionSecrets(node_env);
 
   // compile scss to css
   execSync('node ./scripts/compile_css.js', {stdio : 'inherit'});
@@ -136,15 +119,6 @@ check_arguments_passed(function(pidName, node_env) {
 
           // setting the NODE_ENV variable is more easily done from here seeing at the syntax changes slightly depending on operating system
           execSync(`${(process.platform == 'win32' ? 'set' : 'export')} NODE_ENV=${node_env} && pm2 ${startOrReload} ./bin/instance -i 0 -n explorer -p "./tmp/pm2.pid" --node-args="--stack-size=10000" --update-env`, {stdio : 'inherit'});
-          break;
-        case 'forever':
-          const path = require('path');
-
-          // there is a long-time bug or shortcoming in forever that still exists in the latest version which requires the absolute path to the pid file option
-          // more info: https://github.com/foreversd/forever/issues/421
-          // forever is therefore started from here to be able to more easily resolve the absolute path
-          // also, setting the NODE_ENV variable is more easily done from here as well seeing at the syntax changes slightly depending on operating system
-          execSync(`${(process.platform == 'win32' ? 'set' : 'export')} NODE_ENV=${node_env} && forever start --append --uid "explorer" --pidFile "${path.resolve('./tmp/forever.pid')}" ./bin/cluster`, {stdio : 'inherit'});    
           break;
       }
 

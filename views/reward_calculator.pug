@@ -1,0 +1,34 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title Reward Calculator
+          .sub-page-header.text-muted
+            | Estimate daily Defcoin output from network difficulty and your miner hashrate. This local copy replaces the old remote tool.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  - const customAssetBase = (typeof assetPrefix !== 'undefined' && assetPrefix != null ? assetPrefix : '')
+  script(src=customAssetBase + '/js/defcoin-reward-calculator.js?v=20260527a')
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Daily Mining Estimate
+      .card-body
+        .defcoin-form-grid
+          .form-group
+            label.form-label(for='rewardDifficulty') Network Difficulty
+            input#rewardDifficulty.form-control(type='number', step='0.000001', min='0', value='0.091000')
+          .form-group
+            label.form-label(for='rewardHashrate') Hashrate (KH/s)
+            input#rewardHashrate.form-control(type='number', step='0.000001', min='0', placeholder='Enter your hashrate')
+          .form-group
+            label.form-label(for='rewardBlockValue') Block Reward (DFC)
+            input#rewardBlockValue.form-control(type='number', step='0.000001', min='0', value='12.5')
+        hr
+        .defcoin-tool-output#rewardOutput 0 DFC/day
+        .defcoin-tool-subtext#rewardHelper Current defaults are loaded from this server when available. The fields remain editable for what-if estimates.

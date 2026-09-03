@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 var debug = require('debug')('explorer');
 var settings = require('../lib/settings');
+settings.assertProductionSecrets();
 var db = require('../lib/database');
 var app = require('../app');
 
 app.set('port', process.env.PORT || settings.webserver.port);
 
+var host = process.env.HOST || settings.webserver.host || '127.0.0.1';
+
 db.connect(null, function() {
-  var server = app.listen(app.get('port'), '::', function() {
+  var server = app.listen(app.get('port'), host, function() {
     debug('Express server listening on port ' + server.address().port);
   });
 

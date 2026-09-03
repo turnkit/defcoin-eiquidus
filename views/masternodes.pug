@@ -38,7 +38,7 @@ block content
         ip_address: false,
         last_paid_block: false
       };
-      var labels = !{JSON.stringify(settings.labels)};
+      var labels = !{safeJsonForScript(settings.labels)};
       var ctable = $('#masternodes-table').dataTable({
         autoWidth: true,
         searching: true,
@@ -90,7 +90,7 @@ block content
               if (json[i]['addr'] != null && json[i]['addr'] != '')
                 enabled_columns.addr = true;
 
-              var addr = json[i]['addr'];
+              var addr = String(json[i]['addr'] || '');
 
               if (json[i]['lastseen'] != null)
                 json[i]['lastseen'] = '<span' + (#{settings.shared_pages.date_time.enable_alt_timezone_tooltips} == true ? ' data-bs-toggle="tooltip" data-bs-placement="auto" title="' + format_unixtime(json[i]['lastseen'], true) + '"' : '') + '>' + format_unixtime(json[i]['lastseen']) + '</span>';
@@ -104,7 +104,7 @@ block content
               else
                 json[i]['activetime'] = '<em>N/A</em>';
 
-              json[i]['addr'] = "<a href='/address/" + json[i]['addr'] + "'>" + json[i]['addr'] + ('#{settings.claim_address_page.enabled}' == 'true' && json[i]['claim_name'] != null && json[i]['claim_name'] != '' ? ' <span class="small fw-normal">(' + json[i]['claim_name'] + ')</span>' : '') + "</a>";
+              json[i]['addr'] = "<a href='/address/" + encodeURIComponent(addr) + "'>" + defcoinEscapeHtml(addr) + ('#{settings.claim_address_page.enabled}' == 'true' && json[i]['claim_name'] != null && json[i]['claim_name'] != '' ? ' <span class="small fw-normal">(' + defcoinEscapeHtml(json[i]['claim_name']) + ')</span>' : '') + "</a>";
 
               if (labels[addr] != null && labels[addr].enabled == true) {
                 if (labels[addr].type)
@@ -193,10 +193,7 @@ block content
     });
   .col-md-12.cardSpacer
     if settings.masternodes_page.page_header.show_img == true || settings.masternodes_page.page_header.show_title == true || settings.masternodes_page.page_header.show_last_updated == true || settings.masternodes_page.page_header.show_description == true
-      #page-header-container(style='align-items:' + (settings.masternodes_page.page_header.show_img == true && settings.masternodes_page.page_header.show_title == true && settings.masternodes_page.page_header.show_last_updated == true && settings.masternodes_page.page_header.show_description == true ? 'flex-start' : 'center'))
-        if settings.masternodes_page.page_header.show_img == true
-          #header-img-container
-            img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
+      #page-header-container
         #page-title-container
           if settings.masternodes_page.page_header.show_title == true
             h3#page-title #{settings.localization.mn_title.replace('{1}', settings.coin.name)}
@@ -216,6 +213,7 @@ block content
                 .sub-page-header.text-muted=settings.localization.mn_description.replace('{1}', settings.coin.name)
             else
               .sub-page-header.text-muted=settings.localization.mn_description.replace('{1}', settings.coin.name)
+        +defcoinPageBranding()
       .cardSpacer.clearfix
     .card.card-default.border-0.cardSpacer
       .card-header

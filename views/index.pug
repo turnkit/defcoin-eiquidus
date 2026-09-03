@@ -1,5 +1,23 @@
 extends layout
 
+block page_intro
+  .col-md-12.cardSpacer
+    - var showHeaderImage = true;
+    if showHeaderImage == true || settings.index_page.page_header.show_title == true || settings.index_page.page_header.show_last_updated == true || settings.index_page.page_header.show_description == true
+      #page-header-container.explorer-hero
+        #page-title-container.explorer-hero-brand
+          .explorer-hero-copy
+            if settings.index_page.page_header.show_title == true
+              h3#page-title #{settings.localization.ex_title.replace('{1}', settings.coin.name)}
+            if settings.index_page.page_header.show_last_updated == true
+              .sub-page-header(style='margin-bottom:' + (settings.index_page.page_header.show_description == true ? '5' : '0') + 'px')
+                span.fw-bold=settings.localization.last_updated + ':'
+                span.text-muted#lastUpdatedDate
+            if settings.index_page.page_header.show_description == true
+              .sub-page-header.text-muted=settings.localization.ex_description.replace('{1}', settings.coin.name)
+          +defcoinPageBranding('explorer-hero-mark')
+      .cardSpacer.clearfix
+
 block content
   script.
     var setting_maxTxCount = parseInt("#{settings.api_page.public_apis.ext.getlasttxs.max_items_per_query}");
@@ -48,8 +66,10 @@ block content
         scrollX: true,
         ajax: {
           url: '/ext/getlasttxs/0',
+          cache: false,
           beforeSend: function(jqXHR, settings) {
-            settings.url = settings.url.substring(0, settings.url.indexOf('?')) + '/' + getParameterByName('start', settings.url) + '/' + getParameterByName('length', settings.url) + '/internal';
+            settings.url = settings.url.substring(0, settings.url.indexOf('?')) + '/' + getParameterByName('start', settings.url) + '/' + getParameterByName('length', settings.url) + '/internal/' + Date.now();
+            jqXHR.setRequestHeader('Cache-Control', 'no-cache');
             return true;
           }
         },
@@ -85,14 +105,16 @@ block content
 
           if (#{settings.index_page.show_extracted_by} == true) {
             const extracted_by = JSON.parse(data.length > 6 && data[6 + offset].indexOf('extracted_by:') == 0 ? data[6 + offset].substring('extracted_by:'.length) : '');
-            const labels = !{JSON.stringify(settings.labels)};
+            const labels = !{safeJsonForScript(settings.labels)};
             const active = '#{active}';
 
             let extracted_contents = '';
 
             for (i = 0; i < extracted_by.length; i++) {
+              const addressId = String(extracted_by[i].a_id || '');
+              const displayName = (extracted_by[i].claimname == '' ? addressId : extracted_by[i].claimname);
               extracted_contents += '<div style="overflow: auto;">';
-              extracted_contents += `<a href='/address/${extracted_by[i].a_id}'>${(extracted_by[i].claimname == '' ? extracted_by[i].a_id : extracted_by[i].claimname)}</a>`;
+              extracted_contents += `<a href='/address/${encodeURIComponent(addressId)}'>${defcoinEscapeHtml(displayName)}</a>`;
 
               if (labels[extracted_by[i].a_id] != null && labels[extracted_by[i].a_id].enabled == true) {
                 extracted_contents += `<label class="badge bg-${(labels[extracted_by[i].a_id].type == null || labels[extracted_by[i].a_id].type == '' ? 'default' : labels[extracted_by[i].a_id].type)} float-end d-none d-${active == 'richlist' ? 'md' : (active == 'tx' ? 'lg' : 'sm')}-block" style="margin-left:15px;margin-bottom:0;">${labels[extracted_by[i].a_id].label}`;
@@ -116,6 +138,72 @@ block content
           fixDataTableColumns();
           fixFooterHeightAndPosition();
           enableTooltips();
+        }
+      });
+
+      var orphanTableInitialized = false;
+      function initializeHomeOrphanTable() {
+        if (orphanTableInitialized)
+          return;
+
+        orphanTableInitialized = true;
+        $('#home-orphans-table').dataTable({
+          autoWidth: true,
+          searching: false,
+          ordering: false,
+          lengthChange: true,
+          processing: true,
+          serverSide: true,
+          iDisplayLength: parseInt("#{settings.orphans_page.orphans_table.items_per_page}"),
+          lengthMenu: !{JSON.stringify(settings.orphans_page.orphans_table.page_length_options)},
+          scrollX: true,
+          ajax: {
+            url: '/ext/getorphanlist',
+            beforeSend: function(jqXHR, settings) {
+              settings.url = settings.url.substring(0, settings.url.indexOf('?')) + '/' + getParameterByName('start', settings.url) + '/' + getParameterByName('length', settings.url);
+              return true;
+            }
+          },
+          language: {
+            paginate: {
+              previous: '<',
+              next: '>'
+            },
+            emptyTable: 'No orphaned blocks are currently recorded.'
+          },
+          rowCallback: function(row, data, index) {
+            var blockindex = data[0];
+            var orphan_blockhash = data[1];
+            var good_blockhash = data[2];
+            var prev_blockhash = data[3];
+            var next_blockhash = data[4];
+
+            $("td:eq(0)", row).html('<a href="/block/' + orphan_blockhash + '">' + orphan_blockhash + '</a>').addClass('breakWord');
+            $("td:eq(1)", row).html('<a href="/block/' + good_blockhash + '">' + blockindex.toString() + '</a>').addClass('text-center');
+            $("td:eq(2)", row).html('<a href="/block/' + prev_blockhash + '">' + (blockindex - 1).toString() + '</a>').addClass('text-center');
+
+            if (next_blockhash == null)
+              $("td:eq(3)", row).html('&nbsp;');
+            else
+              $("td:eq(3)", row).html('<a href="/block/' + next_blockhash + '">' + (blockindex + 1).toString() + '</a>').addClass('text-center');
+          },
+          fnDrawCallback: function(settings) {
+            var info = this.api().page.info();
+            $('#home-orphans-count').text(info.recordsTotal);
+            fixDataTableColumns();
+            fixFooterHeightAndPosition();
+            enableTooltips();
+          }
+        });
+      }
+
+      $('#home-orphans-disclosure').on('toggle', function() {
+        if (this.open) {
+          initializeHomeOrphanTable();
+          setTimeout(function() {
+            if ($.fn.DataTable.isDataTable('#home-orphans-table'))
+              $('#home-orphans-table').DataTable().columns.adjust();
+          }, 80);
         }
       });
 
@@ -153,8 +241,6 @@ block content
         var lastUpdatedDate = #{(last_updated == null || last_updated == '0' ? 0 : last_updated)};
         update_last_updated(lastUpdatedDate);
       }
-      if (#{settings.shared_pages.page_header.page_title_image.enable_animation} == true && #{settings.index_page.page_header.show_img} == true)
-        startRotateElement('img#header-img');
     });
   if error !== null
     .col-12
@@ -164,32 +250,29 @@ block content
           span.fa-solid.fa-circle-exclamation(style='margin-right:5px')
           strong #{settings.localization.ex_error}
         div #{error}
+  if settings.orphans_page.enabled == true
+    .col-md-12.cardSpacer
+      details#home-orphans-disclosure.defcoin-disclosure.defcoin-home-orphans
+        summary.defcoin-disclosure-summary
+          span.defcoin-disclosure-arrow(aria-hidden='true')
+          span Orphaned Blocks
+          span.defcoin-disclosure-count#home-orphans-count 7
+        .defcoin-home-orphans-body
+          p.defcoin-orphan-note
+            | Orphaned blocks are valid-looking candidates this explorer indexed, then replaced after the node learned about a competing chain with more accumulated work. The current records are one seven-block reorg at heights 2326560-2326566 from May 17, 2026, meaning this server briefly followed a stale branch and then corrected to the same active Defcoin chain as its peers. The rows below link each orphan hash to the good block at that height.
+          .table-responsive
+            table#home-orphans-table.table.table-bordered.table-striped.table-paging.table-hover.mobile-border-right
+              - var orphanTheadClasses = [];
+              if settings.shared_pages.table_header_bgcolor != null && settings.shared_pages.table_header_bgcolor != ''
+                - orphanTheadClasses.push('table-' + settings.shared_pages.table_header_bgcolor);
+              thead
+                tr(class=orphanTheadClasses)
+                  th #{settings.localization.orphan_block_hash}
+                  th.text-center #{settings.localization.orphan_actual_block}
+                  th.text-center #{settings.localization.orphan_prev_block}
+                  th.text-center #{settings.localization.orphan_next_block}
+              tbody
   .col-md-12.cardSpacer
-    if settings.index_page.page_header.show_img == true || settings.index_page.page_header.show_title == true || settings.index_page.page_header.show_last_updated == true || settings.index_page.page_header.show_description == true
-      #page-header-container(style='align-items:' + (settings.index_page.page_header.show_img == true && settings.index_page.page_header.show_title == true && settings.index_page.page_header.show_last_updated == true && settings.index_page.page_header.show_description == true ? 'flex-start' : 'center'))
-        if settings.index_page.page_header.show_img == true
-          #header-img-container
-            img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
-        #page-title-container
-          if settings.index_page.page_header.show_title == true
-            h3#page-title #{settings.localization.ex_title.replace('{1}', settings.coin.name)}
-          if settings.index_page.page_header.show_last_updated == true
-            if settings.index_page.page_header.show_title != true && settings.index_page.page_header.show_description != true
-              #page-title-container
-                .sub-page-header
-                  span.fw-bold=settings.localization.last_updated + ':'
-                  span.text-muted#lastUpdatedDate
-            else
-              .sub-page-header(style='margin-bottom:' + (settings.index_page.page_header.show_description == true ? '5' : '0') + 'px')
-                span.fw-bold=settings.localization.last_updated + ':'
-                span.text-muted#lastUpdatedDate
-          if settings.index_page.page_header.show_description == true
-            if settings.index_page.page_header.show_title != true && settings.index_page.page_header.show_last_updated != true
-              #page-title-container
-                .sub-page-header.text-muted=settings.localization.ex_description.replace('{1}', settings.coin.name)
-            else
-              .sub-page-header.text-muted=settings.localization.ex_description.replace('{1}', settings.coin.name)
-      .cardSpacer.clearfix
     .card.card-default.border-0.cardSpacer
       .card-header
         strong #{settings.localization.ex_latest_transactions}

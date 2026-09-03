@@ -1,0 +1,146 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title Defcoin Pool
+          .sub-page-header.text-muted
+            | The Defcoin pool now has its own short path at /pool while keeping the same integrated navigation shell as the explorer.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  - const customAssetBase = (typeof assetPrefix !== 'undefined' && assetPrefix != null ? assetPrefix : '')
+  script(src=customAssetBase + '/js/defcoin-pool.js?v=20260620d')
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Mine On DC903
+      .card-body
+        #pool-api-alert.alert.alert-warning.d-none(role='alert')
+        .defcoin-callout
+          p.mb-2.defcoin-helper These numbers come from this server's p2pool node. If that service goes down, or if the Defcoin node stops updating, the warning banner above will say so.
+          p.mb-2.defcoin-helper
+            | Global Pool Hashrate means everyone mining in the wider p2pool pool. Local Pool Hashrate means only miners pointed at this DC903 server. Network Hashrate means the whole Defcoin network, not just p2pool. When mining is quiet, this page shows inactive labels instead of pretending old numbers are still current.
+          p#poolActivityNote.mb-2.defcoin-helper Checking recent pool activity.
+          .defcoin-pill-row
+            span.defcoin-pill
+              strong cgminer
+              span stratum+tcp://defcoin.dc903.org:13372
+            span.defcoin-pill
+              strong minerd
+              span stratum+tcp://defcoin.dc903.org:13372
+        .defcoin-status-grid
+          .defcoin-stat-card
+            span.stat-label Last Updated
+            span.stat-value#poolUpdatedAt Waiting for data
+          .defcoin-stat-card
+            span.stat-label Last Block Found
+            span.stat-value#poolLastBlock Waiting for data
+          .defcoin-stat-card
+            span.stat-label Time Since First Block
+            span.stat-value#poolChainAge Waiting for data
+          .defcoin-stat-card
+            span.stat-label Next Halving
+            span.stat-value#poolNextHalving Waiting for data
+          .defcoin-stat-card
+            span.stat-label Block Height
+            span.stat-value#poolBlockHeight -
+          .defcoin-stat-card
+            span.stat-label Block Reward
+            span.stat-value#poolBlockValue -
+          .defcoin-stat-card
+            span.stat-label Active Miners
+            span.stat-value#poolMinerCount 0
+          .defcoin-stat-card
+            span.stat-label Local Pool Hashrate
+            span.stat-value#poolLocalHashrate -
+          .defcoin-stat-card
+            span.stat-label Global Pool Hashrate
+            span.stat-value#poolGlobalHashrate -
+          .defcoin-stat-card
+            span.stat-label Network Hashrate
+            span.stat-value#poolNetworkHashrate -
+          .defcoin-stat-card
+            span.stat-label Current Difficulty
+            span.stat-value#poolCurrentDifficulty -
+          .defcoin-stat-card
+            span.stat-label Share Difficulty
+            span.stat-value#poolShareDifficulty -
+          .defcoin-stat-card
+            span.stat-label Expected Time To Share
+            span.stat-value#poolExpectedShare -
+          .defcoin-stat-card
+            span.stat-label Expected Time To Block
+            span.stat-value#poolExpectedBlock -
+          .defcoin-stat-card
+            span.stat-label P2Pool Peers
+            span.stat-value#poolNodePeers -
+          .defcoin-stat-card
+            span.stat-label P2Pool Shares
+            span.stat-value#poolShares -
+          .defcoin-stat-card
+            span.stat-label Node Version
+            span.stat-value#poolVersion -
+          .defcoin-stat-card
+            span.stat-label Protocol Version
+            span.stat-value#poolProtocol -
+          .defcoin-stat-card
+            span.stat-label Target Spacing
+            span.stat-value#poolTargetSpacing -
+          .defcoin-stat-card
+            span.stat-label Node Fee
+            span.stat-value#poolFee -
+          .defcoin-stat-card
+            span.stat-label P2Pool Dev Fee
+            span.stat-value#poolDonation -
+        .defcoin-callout#pool-share-status-note
+          p.mb-2.defcoin-helper
+            strong P2Pool share counters are not blockchain orphaned blocks.
+            |  Orphaned shares are P2Pool sharechain shares that lost a sharechain race. Dead/stale shares are shares received too late, or shares that no longer build on the current P2Pool sharechain tip.
+          p.mb-0.defcoin-helper
+            | The explorer's orphaned-block list is different: it records parent-chain blocks that were replaced by a competing Defcoin chain with more accumulated work.
+            a(href='/explorer/#home-orphans-disclosure')  See blockchain orphan/reorg explanation.
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Active Miners
+        span.float-end.defcoin-table-meta#poolMinerTableMeta Sorted by payout weight
+      .card-body
+        .table-responsive
+          table#pool-active-miners.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th.text-center(data-miner-sort='address', data-sort-label='Address', role='button', tabindex='0', title='Miner payout address reported by the pool or P2Pool share window. Click to sort.') Address
+                th.text-center(data-miner-sort='shareAge', data-sort-label='Share Age', role='button', tabindex='0', title='Time since this node last saw an accepted or rejected share submission from this miner. Values under 24 hours show 00h02m53s style, then whole days after 24 hours. Sorting uses exact seconds. Click to sort.') Share Age
+                th.text-center(data-miner-sort='recentRate', data-sort-label='Recent Rate', role='button', tabindex='0', title='Short-window stratum/pseudoshare estimate from this node. This can differ sharply from payout weight. Click to sort.') Recent Rate
+                th.text-center(data-miner-sort='payoutWeight', data-sort-label='Payout Weight', role='button', tabindex='0', title='Share of the current P2Pool payout window. Click to sort.') Payout Weight
+                th.text-center(data-miner-sort='windowRate', data-sort-label='Window Rate', role='button', tabindex='0', title='Payout-window share multiplied by the current pool rate. This is the better companion to predicted payout. Click to sort.') Window Rate
+                th.text-center(data-miner-sort='rejected', data-sort-label='Rejected', role='button', tabindex='0', title='Recent rejected/dead stratum work seen by this node. Click to sort.') Rejected
+                th.text-center(data-miner-sort='payout', data-sort-label='Predicted Payout', role='button', tabindex='0', title='Estimated payout if the current P2Pool share window found a block now. Click to sort.') Predicted Payout
+            tbody
+              tr
+                td.text-center(colspan='7') Waiting for data
+        p.small.text-muted.mb-0 Recent Rate is a short-window stratum estimate. Payout Weight and Predicted Payout come from the P2Pool share window, so a miner can show a low current rate while still holding payout weight from earlier valid shares. Share Age is the time since this node last saw an accepted or rejected share submission from that miner; values under 24 hours show 00h02m53s style, then whole Day/Days. Unknown means this process has not recorded a timestamp for that remembered entry yet. Sorting uses exact seconds.
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Recent Blocks
+        .float-end.defcoin-view-toggle(aria-label='Recent block view mode')
+          button#poolSimpleView(type='button', data-block-view='simple') Simple
+          button#poolDetailedView(type='button', data-block-view='detailed') Detailed
+        span.float-end.defcoin-table-meta#poolBlockTableMeta One page of recent blocks
+      .card-body
+        .table-responsive
+          table#pool-recent-chain-blocks.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th.text-center When
+                th.text-center Date/Time
+                th.text-center Height
+            tbody
+              tr
+                td.text-center(colspan='3') Waiting for data
+        .page-info-jump#poolBlockPagerBottom(aria-label='Recent block pages')

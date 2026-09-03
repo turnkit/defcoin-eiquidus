@@ -4,17 +4,230 @@ var express = require('express'),
     favicon = require('serve-favicon'),
     logger = require('morgan'),
     cookieParser = require('cookie-parser'),
+    request = require('postman-request'),
     settings = require('./lib/settings'),
     routes = require('./routes/index'),
     lib = require('./lib/explorer'),
     db = require('./lib/database'),
     package_metadata = require('./package.json');
+const defcoinMiningCatalog = require('./lib/defcoin_mining_catalog');
+const defcoinPeerFqdnTargets = require('./lib/defcoin_peer_fqdn_targets');
+const inputguard = require('./lib/inputguard');
 var app = express();
+app.set('trust proxy', inputguard.isTrustedProxyAddress);
+app.locals.safeJsonForScript = inputguard.safeJsonForScript;
 var apiAccessList = [];
 var viewPaths = [path.join(__dirname, 'views')]
 var pluginRoutes = [];
 const { exec } = require('child_process');
 const Decimal = require('decimal.js');
+const dns = require('dns');
+const net = require('net');
+const dnsPromises = dns.promises;
+const PEER_FQDN_TIMEOUT_MS = 900;
+const KNOWN_PEER_FQDN_TTL_MS = 10 * 60 * 1000;
+const REVERSE_PEER_FQDN_TTL_MS = 10 * 60 * 1000;
+const PUBLIC_NODE_ENDPOINT_TTL_MS = 5 * 60 * 1000;
+const NETWORK_OVERVIEW_TTL_MS = 30 * 1000;
+const MINING_ESTIMATE_TTL_MS = 30 * 1000;
+const MAX_PEER_FQDN_LOOKUPS = 64;
+const MAX_REVERSE_PEER_CACHE_ENTRIES = 256;
+const PEER_FQDN_LOOKUP_CONCURRENCY = 4;
+const DEFCOIN_PUBLIC_HOST = 'defcoin.dc903.org';
+const DEPRIORITIZED_KNOWN_PEER_FQDNS = new Set([
+  'seed.defcoin.mikej.tech'
+]);
+let knownPeerFqdnCache = {
+  expiresAt: 0,
+  builtAt: '',
+  byAddress: new Map(),
+  byDomain: new Map(),
+  inFlight: null
+};
+let publicNodeEndpointCache = {
+  host: '',
+  expiresAt: 0,
+  value: {
+    address: '50.116.19.40',
+    fqdn: '',
+    fqdn_alias: 'defcoin.dc903.org',
+    fqdn_source: 'known-seed-alias',
+    seed_aggregator: ''
+  }
+};
+let reversePeerFqdnCache = new Map();
+let networkOverviewCache = {
+  expiresAt: 0,
+  value: null,
+  inFlight: null
+};
+let miningEstimateCache = {
+  expiresAt: 0,
+  value: null,
+  inFlight: null
+};
+const DEFCOIN_POOL_API_BASE = process.env.DEFCOIN_POOL_API_BASE || 'https://defcoin.dc903.org/poolapi';
+
+function decimalOrZero(value) {
+  try {
+    if (value == null || value === '')
+      return new Decimal('0');
+
+    return new Decimal(value.toString());
+  } catch (error) {
+    return new Decimal('0');
+  }
+}
+
+function formatHashrateLabel(value) {
+  const units = ['H/s', 'KH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s'];
+  let rate = Number(value || 0);
+  let unitIndex = 0;
+
+  while (rate >= 1000 && unitIndex < (units.length - 1)) {
+    rate /= 1000;
+    unitIndex += 1;
+  }
+
+  if (!Number.isFinite(rate) || rate <= 0)
+    return '-';
+
+  return `${rate.toFixed(rate >= 100 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+function requestJson(uri) {
+  return new Promise(function(resolve, reject) {
+    request({
+      uri: uri,
+      json: true,
+      gzip: true,
+      timeout: 5000
+    }, function(error, response, body) {
+      if (error)
+        return reject(error);
+      if (response == null || response.statusCode < 200 || response.statusCode >= 300)
+        return reject(new Error(`Unexpected status code from ${uri}`));
+
+      return resolve(body);
+    });
+  });
+}
+
+async function fetchPoolApiSnapshot() {
+  const baseUrl = DEFCOIN_POOL_API_BASE.replace(/\/$/, '');
+  const [currencyInfo, localStats, globalStats, recentBlocks] = await Promise.all([
+    requestJson(baseUrl + '/web/currency_info'),
+    requestJson(baseUrl + '/local_stats'),
+    requestJson(baseUrl + '/global_stats'),
+    requestJson(baseUrl + '/recent_blocks')
+  ]);
+
+  return {
+    currencyInfo: currencyInfo || {},
+    localStats: localStats || {},
+    globalStats: globalStats || {},
+    recentBlocks: Array.isArray(recentBlocks) ? recentBlocks : []
+  };
+}
+
+async function getMiningEstimatePayload() {
+  const now = Date.now();
+
+  if (miningEstimateCache.value != null && miningEstimateCache.expiresAt > now)
+    return miningEstimateCache.value;
+
+  if (miningEstimateCache.inFlight)
+    return miningEstimateCache.inFlight;
+
+  miningEstimateCache.inFlight = fetchPoolApiSnapshot()
+    .then(buildMiningEstimatePayload)
+    .then(function(value) {
+      miningEstimateCache.value = value;
+      miningEstimateCache.expiresAt = Date.now() + MINING_ESTIMATE_TTL_MS;
+      return value;
+    })
+    .finally(function() {
+      miningEstimateCache.inFlight = null;
+    });
+
+  return miningEstimateCache.inFlight;
+}
+
+function buildMiningEstimatePayload(snapshot) {
+  const symbol = (snapshot.currencyInfo && snapshot.currencyInfo.symbol ? snapshot.currencyInfo.symbol : 'DFC');
+  const localStats = snapshot.localStats || {};
+  const globalStats = snapshot.globalStats || {};
+  const recentBlocks = snapshot.recentBlocks || [];
+  const minerRates = localStats.miner_hash_rates || {};
+  const localHashrate = Object.keys(minerRates).reduce(function(sum, key) {
+    return sum.plus(decimalOrZero(minerRates[key]));
+  }, new Decimal('0'));
+  const poolHashrate = decimalOrZero(globalStats.pool_hash_rate);
+  const poolNonstaleHashrate = decimalOrZero(globalStats.pool_nonstale_hash_rate);
+  const walletNetworkEstimate = decimalOrZero(globalStats.network_hashrate);
+  const recentLocalHashrate = decimalOrZero(((localStats.my_hash_rates_in_last_hour || {}).actual));
+  const recentShareCount = decimalOrZero(((localStats.my_share_counts_in_last_hour || {}).shares));
+  const attemptsToBlock = decimalOrZero(localStats.attempts_to_block);
+  const attemptsToShare = decimalOrZero(localStats.attempts_to_share);
+  const blockReward = decimalOrZero(localStats.block_value);
+  const feeMultiplier = Decimal.max(new Decimal('0'), new Decimal('1').minus(decimalOrZero(localStats.fee).div('100')));
+  const latestPoolBlockTs = (recentBlocks.length > 0 ? Number(recentBlocks[0].ts || 0) : 0);
+  const nowTs = Math.floor(Date.now() / 1000);
+  const hasRecentPoolBlock = (latestPoolBlockTs > 0 && ((nowTs - latestPoolBlockTs) < (24 * 60 * 60)));
+  const liveNetworkFloor = Decimal.max(localHashrate, poolHashrate, poolNonstaleHashrate);
+  const networkEstimateLabel = (hasRecentPoolBlock && walletNetworkEstimate.gt(0) ? formatHashrateLabel(walletNetworkEstimate) : `>= ${formatHashrateLabel(liveNetworkFloor)} observed live`);
+
+  return {
+    checkedOn: defcoinMiningCatalog.checkedOn,
+    defaultPowerCostUsdPerKwh: defcoinMiningCatalog.defaultPowerCostUsdPerKwh,
+    context: {
+      poolContextLabel: `${formatHashrateLabel(poolHashrate)} global pool, ${blockReward.toFixed(8)} ${symbol} reward`,
+      networkContextLabel: networkEstimateLabel,
+      blockRewardCoins: blockReward.toFixed(8),
+      poolHashrateHps: poolHashrate.toFixed(),
+      localHashrateHps: localHashrate.toFixed(),
+      observedNetworkFloorHps: liveNetworkFloor.toFixed()
+    },
+    rigs: defcoinMiningCatalog.rigs.map(function(rig) {
+      const rigHashrate = decimalOrZero(rig.hashrateHps);
+      const powerCostPerDay = decimalOrZero(rig.watts).div('1000').mul(defcoinMiningCatalog.defaultPowerCostUsdPerKwh).mul('24');
+      const expectedDfCPerDay = (attemptsToBlock.gt(0) ? blockReward.mul(feeMultiplier).mul(rigHashrate).mul('86400').div(attemptsToBlock) : null);
+      let observedRecentDfCPerDay = null;
+
+      if (recentLocalHashrate.gt(0) && recentShareCount.gt(0) && attemptsToShare.gt(0) && attemptsToBlock.gt(0)) {
+        const observedSharesPerSecondPerHash = recentShareCount.div('3600').div(recentLocalHashrate);
+        const estimatedCoinsPerShare = blockReward.mul(feeMultiplier).mul(attemptsToShare).div(attemptsToBlock);
+
+        observedRecentDfCPerDay = rigHashrate.mul(observedSharesPerSecondPerHash).mul(estimatedCoinsPerShare).mul('86400');
+      }
+
+      return {
+        id: rig.id,
+        name: rig.name,
+        class: rig.class,
+        classLabel: rig.class,
+        summary: rig.summary,
+        watts: rig.watts,
+        hashrateHps: rigHashrate.toFixed(),
+        hashrateLabel: formatHashrateLabel(rigHashrate),
+        priceRangeLabel: rig.priceRangeUsd,
+        powerCostPerDayUsd: powerCostPerDay.toNumber(),
+        observedRecentDfCPerDayLabel: (observedRecentDfCPerDay == null ? 'Unavailable' : `${observedRecentDfCPerDay.toFixed(4)} ${symbol}/day`),
+        expectedDfCPerDayLabel: (expectedDfCPerDay == null ? 'Unavailable' : `${expectedDfCPerDay.toFixed(4)} ${symbol}/day`),
+        sources: [
+          {
+            label: rig.priceSourceLabel,
+            url: rig.priceSourceUrl
+          },
+          {
+            label: rig.specSourceLabel,
+            url: rig.specSourceUrl
+          }
+        ]
+      };
+    })
+  };
+}
 
 // pass wallet rpc connection info to nodeapi
 nodeapi.setWalletDetails(settings.wallet);
@@ -45,11 +258,9 @@ if (settings.webserver.tls.enabled == true && settings.webserver.tls.always_redi
       // continue without redirecting
       next();
     } else {
-      // add webserver port to the host value if it does not already exist
-      const host = req.headers.host + (req.headers.host.indexOf(':') > -1 ? '' : ':' + settings.webserver.port.toString());
-
-      // redirect to the correct https page
-      res.redirect(301, 'https://' + host.replace(':' + settings.webserver.port.toString(), (settings.webserver.tls.port != 443 ? ':' + settings.webserver.tls.port.toString() : '')) + req.url);
+      // Never reflect an untrusted Host header into a security redirect.
+      const tlsPort = (settings.webserver.tls.port != 443 ? ':' + settings.webserver.tls.port.toString() : '');
+      res.redirect(301, 'https://' + DEFCOIN_PUBLIC_HOST + tlsPort + req.url);
     }
   });
 }
@@ -167,9 +378,11 @@ if (default_favicon != '')
   app.use(favicon(path.join('./public', default_favicon)));
 
 app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '16kb' }));
+app.use(express.urlencoded({ extended: true, limit: '16kb', parameterLimit: 20 }));
 app.use(cookieParser());
+app.use(inputguard.setSecurityHeaders);
+app.use(inputguard.guardExpressRequest);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // routes
@@ -181,8 +394,26 @@ pluginRoutes.forEach(function (r) {
   app.use('/', r);
 });
 
+app.get('/ext/mining-estimates', async function(req, res) {
+  try {
+    res.json(await getMiningEstimatePayload());
+  } catch (error) {
+    res.status(503).json({
+      error: true,
+      message: 'Unable to retrieve live pool data for mining estimates right now.'
+    });
+  }
+});
+
 // post method to claim an address using verifymessage functionality
 app.post('/claim', function(req, res) {
+  req.body.address = inputguard.cleanBoundedText(req.body.address, 80);
+  req.body.signature = inputguard.cleanBoundedText(req.body.signature, inputguard.MAX_RPC_SIGNATURE_LENGTH);
+  req.body.message = inputguard.cleanBoundedText(req.body.message, inputguard.MAX_RPC_MESSAGE_LENGTH);
+
+  if (!inputguard.isAddressLike(req.body.address) || req.body.signature === '' || req.body.message === '')
+    return inputguard.reject(res, 400, 'Invalid claim request');
+
   // validate captcha if applicable
   validate_captcha(settings.claim_address_page.enable_captcha, req.body, function(captcha_error) {
     // check if there was a problem with captcha
@@ -231,7 +462,7 @@ function validate_captcha(captcha_enabled, data, cb) {
       if (data.google_recaptcha3 != null) {
         const request = require('postman-request');
 
-        request({uri: 'https://www.google.com/recaptcha/api/siteverify?secret=' + settings.captcha.google_recaptcha3.secret_key + '&response=' + data.google_recaptcha3, json: true}, function (error, response, body) {
+        request({method: 'POST', uri: 'https://www.google.com/recaptcha/api/siteverify', form: {secret: settings.captcha.google_recaptcha3.secret_key, response: data.google_recaptcha3}, json: true, timeout: 5000}, function (error, response, body) {
           if (error) {
             // an error occurred while trying to validate the captcha
             return cb(true);
@@ -254,7 +485,7 @@ function validate_captcha(captcha_enabled, data, cb) {
       if (data.google_recaptcha2 != null) {
         const request = require('postman-request');
 
-        request({uri: 'https://www.google.com/recaptcha/api/siteverify?secret=' + settings.captcha.google_recaptcha2.secret_key + '&response=' + data.google_recaptcha2, json: true}, function (error, response, body) {
+        request({method: 'POST', uri: 'https://www.google.com/recaptcha/api/siteverify', form: {secret: settings.captcha.google_recaptcha2.secret_key, response: data.google_recaptcha2}, json: true, timeout: 5000}, function (error, response, body) {
           if (error) {
             // an error occurred while trying to validate the captcha
             return cb(true);
@@ -277,7 +508,7 @@ function validate_captcha(captcha_enabled, data, cb) {
       if (data.hcaptcha != null) {
         const request = require('postman-request');
 
-        request({uri: 'https://hcaptcha.com/siteverify?secret=' + settings.captcha.hcaptcha.secret_key + '&response=' + data.hcaptcha, json: true}, function (error, response, body) {
+        request({method: 'POST', uri: 'https://hcaptcha.com/siteverify', form: {secret: settings.captcha.hcaptcha.secret_key, response: data.hcaptcha}, json: true, timeout: 5000}, function (error, response, body) {
           if (error) {
             // an error occurred while trying to validate the captcha
             return cb(true);
@@ -330,6 +561,22 @@ function filter_bad_words(msg, cb) {
 // post method to receive data from a plugin
 app.post('/plugin-request', function(req, res) {
   const pluginLockName = 'plugin';
+  let authenticatedData = null;
+
+  try {
+    authenticatedData = JSON.parse(req.body.data);
+  } catch {
+    return res.status(400).json({'status': 'failed', 'error': true, 'message': 'POST data is missing or not in the correct format'});
+  }
+
+  if (authenticatedData == null || typeof authenticatedData !== 'object' || Array.isArray(authenticatedData) || authenticatedData.plugin_data == null)
+    return res.status(400).json({'status': 'failed', 'error': true, 'message': 'POST data is missing or not in the correct format'});
+
+  if (!inputguard.constantTimeSecretEqual(settings.plugins.plugin_secret_code, authenticatedData.plugin_data.secret_code))
+    return res.status(403).json({'status': 'failed', 'error': true, 'message': 'Secret code is missing or incorrect'});
+
+  if (authenticatedData.plugin_data.coin_name == null || authenticatedData.plugin_data.coin_name == '')
+    return res.status(400).json({'status': 'failed', 'error': true, 'message': 'Coin name is missing'});
 
   // check if another plugin request is already running
   if (lib.is_locked([pluginLockName], true) == true)
@@ -345,25 +592,17 @@ app.post('/plugin-request', function(req, res) {
     } else {
       // all lock tests passed. OK to run plugin request
 
-      let dataObject = {};
-
-      try {
-        // attempt to parse the POST data field into a JSON object
-        dataObject = JSON.parse(req.body.data);
-      } catch {
-        // do nothing. errors will be handled below
-      }
+      // Continue with the exact object that passed the constant-time check;
+      // do not parse and compare attacker-controlled credentials a second time.
+      const dataObject = authenticatedData;
 
       // check if the dataObject was populated
       if (dataObject == null || JSON.stringify(dataObject) === '{}') {
         lib.remove_lock(pluginLockName);
         res.json({'status': 'failed', 'error': true, 'message': 'POST data is missing or not in the correct format'});
       } else {
-        // check if the plugin secret code is correct and if the coin name was specified
-        if (dataObject.plugin_data == null || settings.plugins.plugin_secret_code != dataObject.plugin_data.secret_code) {
-          lib.remove_lock(pluginLockName);
-          res.json({'status': 'failed', 'error': true, 'message': 'Secret code is missing or incorrect'});
-        } else if (dataObject.plugin_data.coin_name == null || dataObject.plugin_data.coin_name == '') {
+        // check if the coin name was specified
+        if (dataObject.plugin_data.coin_name == null || dataObject.plugin_data.coin_name == '') {
           lib.remove_lock(pluginLockName);
           res.json({'status': 'failed', 'error': true, 'message': 'Coin name is missing'});
         } else {
@@ -438,6 +677,9 @@ app.use('/ext/getmoneysupply', function(req, res) {
 app.use('/ext/getaddress/:hash', function(req, res) {
   // check if the getaddress api is enabled
   if (settings.api_page.enabled == true && settings.api_page.public_apis.ext.getaddress.enabled == true) {
+    if (!inputguard.isAddressLike(req.params.hash))
+      return inputguard.reject(res, 400, 'Invalid address');
+
     db.get_address(req.params.hash, false, function(address) {
       db.get_address_txs_ajax(req.params.hash, 0, settings.api_page.public_apis.ext.getaddresstxs.max_items_per_query, function(txs, count) {
         if (address) {
@@ -492,6 +734,9 @@ app.use('/ext/gettx/:txid', function(req, res) {
   if (settings.api_page.enabled == true && settings.api_page.public_apis.ext.gettx.enabled == true) {
     var txid = req.params.txid;
 
+    if (!inputguard.isHash64(txid))
+      return inputguard.reject(res, 400, 'Invalid transaction id');
+
     db.get_tx(txid, function(tx) {
       if (tx) {
         lib.get_blockcount(function(blockcount) {
@@ -545,6 +790,9 @@ app.use('/ext/gettx/:txid', function(req, res) {
 app.use('/ext/getbalance/:hash', function(req, res) {
   // check if the getbalance api is enabled
   if (settings.api_page.enabled == true && settings.api_page.public_apis.ext.getbalance.enabled == true) {
+    if (!inputguard.isAddressLike(req.params.hash))
+      return inputguard.reject(res, 400, 'Invalid address');
+
     db.get_address(req.params.hash, false, function(address) {
       if (address) {
         res.setHeader('content-type', 'text/plain');
@@ -637,14 +885,10 @@ app.use('/ext/getlasttxs/:min', function(req, res) {
     }
 
     // fix parameters
-    if (typeof length === 'undefined' || isNaN(length) || length > settings.api_page.public_apis.ext.getlasttxs.max_items_per_query)
-      length = settings.api_page.public_apis.ext.getlasttxs.max_items_per_query;
-    if (typeof start === 'undefined' || isNaN(start) || start < 0)
-      start = 0;
-    if (typeof min === 'undefined' || isNaN(min) || min < 0)
-      min  = 0;
-    else
-      min  = (min * 100000000);
+    const maxLength = settings.api_page.public_apis.ext.getlasttxs.max_items_per_query;
+    length = inputguard.boundedInt(length, maxLength, 1, maxLength);
+    start = inputguard.boundedInt(start, 0, 0, inputguard.MAX_API_OFFSET);
+    min = inputguard.boundedAmountSats(min, 0);
 
     db.get_last_txs(start, length, min, internal, function(data, count) {
       // check if this is an internal request
@@ -665,6 +909,9 @@ app.use('/ext/getaddresstxs/:address/:start/:length', function(req, res) {
   if ((settings.api_page.enabled == true && settings.api_page.public_apis.ext.getaddresstxs.enabled == true) || (req.headers['x-requested-with'] != null && req.headers['x-requested-with'].toLowerCase() == 'xmlhttprequest' && req.headers.referer != null && req.headers.accept.indexOf('text/javascript') > -1 && req.headers.accept.indexOf('application/json') > -1)) {
     let internal = false;
 
+    if (!inputguard.isAddressLike(req.params.address))
+      return inputguard.reject(res, 400, 'Invalid address');
+
     // split url suffix by forward slash and remove blank entries
     const split = req.url.split('/').filter(function(v) { return v; });
 
@@ -673,14 +920,9 @@ app.use('/ext/getaddresstxs/:address/:start/:length', function(req, res) {
       internal = true;
 
     // fix parameters
-    if (typeof req.params.length === 'undefined' || isNaN(req.params.length) || req.params.length > settings.api_page.public_apis.ext.getaddresstxs.max_items_per_query)
-      req.params.length = settings.api_page.public_apis.ext.getaddresstxs.max_items_per_query;
-    if (typeof req.params.start === 'undefined' || isNaN(req.params.start) || req.params.start < 0)
-      req.params.start = 0;
-    if (typeof req.params.min === 'undefined' || isNaN(req.params.min) || req.params.min < 0)
-      req.params.min  = 0;
-    else
-      req.params.min  = (req.params.min * 100000000);
+    const maxLength = settings.api_page.public_apis.ext.getaddresstxs.max_items_per_query;
+    req.params.length = inputguard.boundedInt(req.params.length, maxLength, 1, maxLength);
+    req.params.start = inputguard.boundedInt(req.params.start, 0, 0, inputguard.MAX_API_OFFSET);
 
     db.get_address_txs_ajax(req.params.address, req.params.start, req.params.length, function(txs, count) {
       let data = [];
@@ -774,6 +1016,742 @@ function get_connection_and_block_counts(get_data, cb) {
     return cb(null, null);
 }
 
+function normalize_peer_key(address, port) {
+  return `${((address || '') + '').replace(/^\[/, '').replace(/\]$/, '').trim().toLowerCase()}|${port == null ? '' : port.toString().trim()}`;
+}
+
+function sanitize_peer_address(address) {
+  return ((address || '') + '').replace(/^\[/, '').replace(/\]$/, '').trim();
+}
+
+async function map_with_concurrency(items, limit, iterator) {
+  const source = Array.isArray(items) ? items : [];
+  const results = new Array(source.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < source.length) {
+      const index = nextIndex++;
+      results[index] = await iterator(source[index], index);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, limit), source.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
+function promise_with_timeout(promise, timeoutMs, fallback) {
+  return new Promise(function(resolve) {
+    let settled = false;
+    const timer = setTimeout(function() {
+      if (!settled) {
+        settled = true;
+        resolve(fallback);
+      }
+    }, timeoutMs);
+
+    Promise.resolve(promise).then(function(value) {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      }
+    }).catch(function() {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    });
+  });
+}
+
+function is_local_wallet_peer(address) {
+  const normalizedAddress = sanitize_peer_address(address).toLowerCase();
+
+  return normalizedAddress === '127.0.0.1' || normalizedAddress === '::1' || normalizedAddress === 'localhost';
+}
+
+function normalize_peer_hostname(hostname) {
+  if (hostname == null || hostname === '')
+    return '';
+
+  return hostname.toString().trim().replace(/\.$/, '').toLowerCase();
+}
+
+async function resolve_domain_ips_with_tools(domain) {
+  const hostname = normalize_peer_hostname(domain);
+  const lookups = [];
+
+  if (hostname === '')
+    return [];
+
+  if (dnsPromises != null && typeof dnsPromises.resolve4 === 'function') {
+    lookups.push(
+      dnsPromises.resolve4(hostname).catch(function() {
+        return [];
+      })
+    );
+  }
+
+  if (dnsPromises != null && typeof dnsPromises.resolve6 === 'function') {
+    lookups.push(
+      dnsPromises.resolve6(hostname).catch(function() {
+        return [];
+      })
+    );
+  }
+
+  const results = await Promise.all(lookups);
+  const ips = new Set();
+
+  results.flat().forEach(function(ip) {
+    if (net.isIP(ip) !== 0)
+      ips.add(ip);
+  });
+
+  return Array.from(ips).slice(0, MAX_PEER_FQDN_LOOKUPS);
+}
+
+async function resolve_reverse_hostnames_with_tools(address) {
+  const ip = sanitize_peer_address(address);
+
+  if (ip === '' || net.isIP(ip) === 0)
+    return [];
+
+  const now = Date.now();
+  const cached = reversePeerFqdnCache.get(ip);
+
+  if (cached != null && cached.expiresAt > now)
+    return cached.value.slice();
+
+  if (cached != null && cached.inFlight != null)
+    return cached.inFlight;
+
+  if (dnsPromises == null || typeof dnsPromises.reverse !== 'function')
+    return [];
+
+  const inFlight = promise_with_timeout(dnsPromises.reverse(ip), PEER_FQDN_TIMEOUT_MS, []).then(function(values) {
+    const hostnames = Array.from(new Set((Array.isArray(values) ? values : []).map(normalize_peer_hostname).filter(Boolean))).slice(0, 4);
+    reversePeerFqdnCache.set(ip, {
+      expiresAt: Date.now() + REVERSE_PEER_FQDN_TTL_MS,
+      value: hostnames,
+      inFlight: null
+    });
+
+    while (reversePeerFqdnCache.size > MAX_REVERSE_PEER_CACHE_ENTRIES)
+      reversePeerFqdnCache.delete(reversePeerFqdnCache.keys().next().value);
+
+    return hostnames.slice();
+  });
+
+  reversePeerFqdnCache.set(ip, { expiresAt: 0, value: [], inFlight: inFlight });
+  return inFlight;
+}
+
+function remember_known_peer_fqdn(byAddress, byDomain, target, ips) {
+  const domain = normalize_peer_hostname(target.domain);
+  const addressCount = ips.length;
+
+  if (domain === '' || addressCount === 0)
+    return;
+
+  byDomain.set(domain, {
+    domain: domain,
+    ips: ips,
+    port: target.port || '',
+    type: target.type || 'known',
+    source: target.source || 'known Defcoin domain',
+    priority: target.priority || 999,
+    addressCount: addressCount
+  });
+
+  ips.forEach(function(ip) {
+    const key = sanitize_peer_address(ip);
+
+    if (key === '')
+      return;
+
+    if (!byAddress.has(key))
+      byAddress.set(key, []);
+
+    byAddress.get(key).push({
+      domain: domain,
+      port: target.port || '',
+      type: target.type || 'known',
+      source: target.source || 'known Defcoin domain',
+      priority: target.priority || 999,
+      addressCount: addressCount
+    });
+  });
+}
+
+async function refresh_known_peer_fqdn_cache(force) {
+  const now = Date.now();
+
+  if (!force && knownPeerFqdnCache.expiresAt > now)
+    return knownPeerFqdnCache;
+
+  if (knownPeerFqdnCache.inFlight != null)
+    return knownPeerFqdnCache.inFlight;
+
+  knownPeerFqdnCache.inFlight = (async function() {
+    const byAddress = new Map();
+    const byDomain = new Map();
+
+    await map_with_concurrency(defcoinPeerFqdnTargets, PEER_FQDN_LOOKUP_CONCURRENCY, async function(target) {
+      const resolvedIps = await resolve_domain_ips_with_tools(target.domain);
+      const ips = new Set(resolvedIps);
+
+      (Array.isArray(target.staticIps) ? target.staticIps : []).forEach(function(ip) {
+        const sanitizedIp = sanitize_peer_address(ip);
+
+        if (net.isIP(sanitizedIp) !== 0)
+          ips.add(sanitizedIp);
+      });
+
+      remember_known_peer_fqdn(byAddress, byDomain, target, Array.from(ips));
+    });
+
+    knownPeerFqdnCache = {
+      expiresAt: Date.now() + KNOWN_PEER_FQDN_TTL_MS,
+      builtAt: new Date().toISOString(),
+      byAddress: byAddress,
+      byDomain: byDomain,
+      inFlight: null
+    };
+
+    return knownPeerFqdnCache;
+  })();
+
+  return knownPeerFqdnCache.inFlight;
+}
+
+function choose_known_peer_fqdn(entries, port) {
+  const entry = choose_known_peer_fqdn_entry(entries, port);
+
+  return entry != null ? (entry.domain || '') : '';
+}
+
+function choose_known_peer_fqdn_entry(entries, port) {
+  if (!Array.isArray(entries) || entries.length === 0)
+    return null;
+
+  const normalizedPort = (port == null ? '' : port.toString().trim());
+  const matchingEntries = entries.filter(function(entry) {
+    return !entry.port || !normalizedPort || entry.port === normalizedPort;
+  });
+  const hasPreferredKnownName = matchingEntries.some(function(entry) {
+    return !DEPRIORITIZED_KNOWN_PEER_FQDNS.has(entry.domain || '');
+  });
+  const ranked = entries.slice().sort(function(a, b) {
+    const aPortPenalty = (a.port && normalizedPort && a.port !== normalizedPort) ? 50 : 0;
+    const bPortPenalty = (b.port && normalizedPort && b.port !== normalizedPort) ? 50 : 0;
+    const aAggregatePenalty = Math.max(0, (a.addressCount || 1) - 1) * 10;
+    const bAggregatePenalty = Math.max(0, (b.addressCount || 1) - 1) * 10;
+    const aAggregatorPenalty = (hasPreferredKnownName && DEPRIORITIZED_KNOWN_PEER_FQDNS.has(a.domain || '')) ? 1000 : 0;
+    const bAggregatorPenalty = (hasPreferredKnownName && DEPRIORITIZED_KNOWN_PEER_FQDNS.has(b.domain || '')) ? 1000 : 0;
+
+    return ((a.priority || 999) + aPortPenalty + aAggregatePenalty + aAggregatorPenalty)
+      - ((b.priority || 999) + bPortPenalty + bAggregatePenalty + bAggregatorPenalty);
+  });
+
+  return ranked[0] || null;
+}
+
+function is_seed_aggregator_entry(entry) {
+  return entry != null && entry.type === 'seed' && (entry.addressCount || 0) > 1;
+}
+
+function choose_seed_aggregator_fqdn(entries) {
+  if (!Array.isArray(entries) || entries.length === 0)
+    return '';
+
+  const ranked = entries
+    .filter(is_seed_aggregator_entry)
+    .slice()
+    .sort(function(a, b) {
+      return (a.priority || 999) - (b.priority || 999);
+    });
+
+  return ranked.length > 0 ? (ranked[0].domain || '') : '';
+}
+
+function get_cached_known_peer_fqdn(address, port) {
+  const entry = get_cached_known_peer_fqdn_entry(address, port);
+
+  return entry != null ? (entry.domain || '') : '';
+}
+
+function get_cached_known_peer_fqdn_entry(address, port) {
+  const sanitizedAddress = sanitize_peer_address(address);
+
+  if (sanitizedAddress === '')
+    return null;
+
+  return choose_known_peer_fqdn_entry(knownPeerFqdnCache.byAddress.get(sanitizedAddress), port);
+}
+
+function get_cached_seed_aggregator_fqdn(address) {
+  const sanitizedAddress = sanitize_peer_address(address);
+
+  if (sanitizedAddress === '')
+    return '';
+
+  return choose_seed_aggregator_fqdn(knownPeerFqdnCache.byAddress.get(sanitizedAddress));
+}
+
+function serialize_known_peer_fqdn_cache(cache) {
+  const byAddress = {};
+  const byDomain = {};
+
+  (cache.byAddress || new Map()).forEach(function(entries, address) {
+    byAddress[address] = entries.map(function(entry) {
+      return {
+        domain: entry.domain,
+        port: entry.port,
+        type: entry.type,
+        source: entry.source,
+        priority: entry.priority,
+        address_count: entry.addressCount
+      };
+    });
+  });
+
+  (cache.byDomain || new Map()).forEach(function(entry, domain) {
+    byDomain[domain] = {
+      ips: entry.ips,
+      port: entry.port,
+      type: entry.type,
+      source: entry.source,
+      priority: entry.priority,
+      address_count: entry.addressCount
+    };
+  });
+
+  return {
+    built_at: cache.builtAt,
+    expires_at: cache.expiresAt ? new Date(cache.expiresAt).toISOString() : '',
+    by_address: byAddress,
+    by_domain: byDomain
+  };
+}
+
+function build_seed_aggregator_summaries() {
+  const summaries = [];
+  const byAddress = knownPeerFqdnCache.byAddress || new Map();
+
+  (knownPeerFqdnCache.byDomain || new Map()).forEach(function(entry) {
+    if (!is_seed_aggregator_entry(entry))
+      return;
+
+    const resolved = (entry.ips || []).map(function(ip) {
+      const bestKnown = choose_known_peer_fqdn_entry(byAddress.get(ip), entry.port);
+      const knownName = bestKnown != null && bestKnown.domain !== entry.domain
+        ? bestKnown.domain
+        : '';
+
+      return {
+        address: ip,
+        known_name: knownName
+      };
+    }).sort(function(a, b) {
+      const aText = (a.known_name || a.address || '').toLowerCase();
+      const bText = (b.known_name || b.address || '').toLowerCase();
+
+      return aText.localeCompare(bText);
+    });
+
+    summaries.push({
+      domain: entry.domain,
+      address_count: entry.addressCount || resolved.length,
+      resolved: resolved
+    });
+  });
+
+  return summaries.sort(function(a, b) {
+    return (a.domain || '').localeCompare(b.domain || '');
+  });
+}
+
+function get_peer_fqdn_cache_key(peer) {
+  return normalize_peer_key(peer.address, peer.port);
+}
+
+async function resolve_peer_fqdn(peer) {
+  const address = sanitize_peer_address(peer.address);
+
+  if (address == null || address === '')
+    return { fqdn: '', fqdn_alias: '', fqdn_source: '', seed_aggregator: '' };
+
+  if (is_local_wallet_peer(address))
+    return { fqdn: 'localhost', fqdn_alias: '', fqdn_source: 'local', seed_aggregator: '' };
+
+  if (net.isIP(address) === 0) {
+    const hostname = normalize_peer_hostname(address);
+
+    return {
+      fqdn: '',
+      fqdn_alias: hostname,
+      fqdn_source: (hostname === '' ? '' : 'configured-hostname'),
+      seed_aggregator: ''
+    };
+  }
+
+  await refresh_known_peer_fqdn_cache(false);
+
+  const cachedKnownFqdn = get_cached_known_peer_fqdn(address, peer.port);
+  const seedAggregator = get_cached_seed_aggregator_fqdn(address);
+  const reverseHostnames = await Promise.race([
+    resolve_reverse_hostnames_with_tools(address),
+    new Promise((resolve) => {
+      setTimeout(function() {
+        resolve([]);
+      }, PEER_FQDN_TIMEOUT_MS);
+    })
+  ]);
+  const reverseFqdn = Array.isArray(reverseHostnames) && reverseHostnames.length > 0
+    ? normalize_peer_hostname(reverseHostnames[0])
+    : '';
+
+  if (reverseFqdn !== '') {
+    return {
+      fqdn: reverseFqdn,
+      fqdn_alias: (cachedKnownFqdn !== '' && cachedKnownFqdn !== reverseFqdn ? cachedKnownFqdn : ''),
+      fqdn_source: (cachedKnownFqdn !== '' && cachedKnownFqdn !== reverseFqdn ? 'reverse-dns-with-seed-alias' : 'reverse-dns'),
+      seed_aggregator: seedAggregator
+    };
+  }
+
+  if (cachedKnownFqdn !== '') {
+    return {
+      fqdn: '',
+      fqdn_alias: cachedKnownFqdn,
+      fqdn_source: 'known-seed-alias',
+      seed_aggregator: seedAggregator
+    };
+  }
+
+  return { fqdn: '', fqdn_alias: '', fqdn_source: '', seed_aggregator: seedAggregator };
+}
+
+async function annotate_peer_fqdns(peerGroups) {
+  const groups = (peerGroups || []).filter(group => Array.isArray(group));
+  const lookup = new Map();
+
+  groups.forEach(function(group) {
+    group.forEach(function(peer) {
+      if (peer == null)
+        return;
+
+      const cacheKey = get_peer_fqdn_cache_key(peer);
+
+      if (cacheKey === '|')
+        return;
+
+      if (!lookup.has(cacheKey))
+        lookup.set(cacheKey, []);
+
+      lookup.get(cacheKey).push(peer);
+    });
+  });
+
+  const lookupEntries = Array.from(lookup.entries()).slice(0, MAX_PEER_FQDN_LOOKUPS);
+  await map_with_concurrency(lookupEntries, PEER_FQDN_LOOKUP_CONCURRENCY, async function(entry) {
+    const peers = entry[1];
+    const fqdnInfo = await resolve_peer_fqdn(peers[0]);
+
+    peers.forEach(function(peer) {
+      peer.fqdn = fqdnInfo.fqdn;
+      peer.fqdn_alias = fqdnInfo.fqdn_alias;
+      peer.fqdn_source = fqdnInfo.fqdn_source;
+      peer.seed_aggregator = fqdnInfo.seed_aggregator;
+    });
+  });
+}
+
+setImmediate(function() {
+  refresh_known_peer_fqdn_cache(true).catch(function(err) {
+    console.log('Known Defcoin FQDN cache refresh failed: ' + (err && err.message ? err.message : err));
+  });
+});
+
+async function resolve_public_node_endpoint() {
+  const publicHost = DEFCOIN_PUBLIC_HOST;
+  const now = Date.now();
+
+  if (publicHost !== '' && publicNodeEndpointCache.host === publicHost && publicNodeEndpointCache.expiresAt > now)
+    return Object.assign({}, publicNodeEndpointCache.value);
+
+  const fallbackValue = Object.assign({}, publicNodeEndpointCache.value);
+
+  if (publicHost === '')
+    return fallbackValue;
+
+  let resolvedAddress = fallbackValue.address;
+
+  try {
+    const resolved = await Promise.race([
+      dnsPromises.lookup(publicHost, { family: 4 }),
+      new Promise((resolve) => {
+        setTimeout(function() {
+          resolve(null);
+        }, PEER_FQDN_TIMEOUT_MS);
+      })
+    ]);
+
+    if (resolved != null && resolved.address != null && resolved.address !== '')
+      resolvedAddress = resolved.address;
+  } catch (err) {
+    resolvedAddress = fallbackValue.address;
+  }
+
+  let fqdnInfo = {
+    fqdn: '',
+    fqdn_alias: '',
+    fqdn_source: '',
+    seed_aggregator: ''
+  };
+
+  try {
+    fqdnInfo = await resolve_peer_fqdn({
+      address: resolvedAddress,
+      port: '1337'
+    });
+  } catch (err) {
+    fqdnInfo = {
+      fqdn: '',
+      fqdn_alias: '',
+      fqdn_source: '',
+      seed_aggregator: ''
+    };
+  }
+
+  const normalizedPublicHost = normalize_peer_hostname(publicHost);
+  const publicHostAlias = (normalizedPublicHost !== '' && normalizedPublicHost !== fqdnInfo.fqdn)
+    ? normalizedPublicHost
+    : '';
+  const fqdnAlias = publicHostAlias || fqdnInfo.fqdn_alias || '';
+  const fqdnSource = fqdnInfo.fqdn !== ''
+    ? (fqdnAlias !== '' ? 'reverse-dns-with-seed-alias' : 'reverse-dns')
+    : (fqdnAlias !== '' ? 'known-seed-alias' : '');
+
+  publicNodeEndpointCache = {
+    host: publicHost,
+    expiresAt: now + PUBLIC_NODE_ENDPOINT_TTL_MS,
+    value: {
+      address: resolvedAddress,
+      fqdn: fqdnInfo.fqdn || '',
+      fqdn_alias: fqdnAlias,
+      fqdn_source: fqdnSource,
+      seed_aggregator: fqdnInfo.seed_aggregator || ''
+    }
+  };
+
+  return Object.assign({}, publicNodeEndpointCache.value);
+}
+
+function annotate_public_node_endpoint(overview, publicEndpoint) {
+  if (overview == null || !Array.isArray(overview.raw_only_peers) || publicEndpoint == null)
+    return;
+
+  overview.raw_only_peers.forEach(function(peer) {
+    if (peer.connection_badge !== 'this-node')
+      return;
+
+    peer.address = publicEndpoint.address || peer.address;
+    peer.fqdn = publicEndpoint.fqdn || '';
+    peer.fqdn_alias = publicEndpoint.fqdn_alias || '';
+    peer.fqdn_source = publicEndpoint.fqdn_source || '';
+    peer.seed_aggregator = publicEndpoint.seed_aggregator || '';
+    peer.port = '1337';
+    peer.country = 'This node';
+  });
+}
+
+function parse_wallet_peer_address(rawAddress) {
+  let address = (rawAddress || '').toString().trim();
+  let port = null;
+
+  if (address.startsWith('[') && address.indexOf(']:') > -1) {
+    port = address.substring(address.lastIndexOf(':') + 1);
+    address = address.substring(1, address.lastIndexOf(']:'));
+  } else if ((address.match(/:/g) || []).length === 1) {
+    port = address.substring(address.lastIndexOf(':') + 1);
+    address = address.substring(0, address.lastIndexOf(':'));
+  } else if (address.startsWith('[') && address.endsWith(']'))
+    address = address.substring(1, address.length - 1);
+
+  return {
+    address: address,
+    port: (port == null || port === '' ? null : port)
+  };
+}
+
+function build_network_overview(connection_count, listed_connection_peers, addnode_peers, onetry_peers, raw_wallet_peers) {
+  const connectionPeers = (listed_connection_peers || []).map(peer => Object.assign({}, peer));
+  const addnodePeers = (addnode_peers || []).map(peer => Object.assign({}, peer));
+  const onetryPeers = (onetry_peers || []).map(peer => Object.assign({}, peer));
+  const rawPeers = Array.isArray(raw_wallet_peers) ? raw_wallet_peers : [];
+  const cachedConnectionLookup = new Map(connectionPeers.map(peer => [normalize_peer_key(peer.address, peer.port), Object.assign({}, peer)]));
+  const liveConnectionPeers = [];
+  const seenLiveConnectionKeys = new Set();
+  const seenRawOnlyKeys = new Set();
+  const rawOnlyPeers = [];
+
+  rawPeers.forEach(function(peer) {
+    const parsedPeer = parse_wallet_peer_address(peer.addr);
+    const peerKey = normalize_peer_key(parsedPeer.address, parsedPeer.port);
+    const peerVersion = parseInt(peer.version) || 0;
+    const cleanSubver = ((peer.subver || '') + '').replace(/\//g, '').trim();
+    const peerMagic = ((peer.p2p_magic || '') + '').trim();
+    const peerNodeId = (peer.id == null ? '' : peer.id.toString());
+    const peerServicesText = ((peer.services || '') + '').trim();
+    const peerServicesNames = (Array.isArray(peer.servicesnames) ? peer.servicesnames.join(', ') : '');
+    const peerPingMs = (typeof peer.pingtime === 'number' && isFinite(peer.pingtime) ? Math.round(peer.pingtime * 1000) : null);
+    const peerBytesSent = (peer.bytessent == null ? null : (parseInt(peer.bytessent, 10) || 0));
+    const peerBytesReceived = (peer.bytesrecv == null ? null : (parseInt(peer.bytesrecv, 10) || 0));
+    const handshakePending = (peerVersion === 0 && cleanSubver === '');
+    const isLocalPeer = is_local_wallet_peer(parsedPeer.address);
+    const peerServices = parseInt((peer.services || '0').toString(), 16) || 0;
+    const isDefcoinFullNode =
+      peerVersion > 0 &&
+      (peerServices & 1) === 1 &&
+      (cleanSubver.indexOf('Defcoin') === 0 || cleanSubver.indexOf('DFC') === 0);
+
+    if (peerKey === '|')
+      return;
+
+    if (isDefcoinFullNode && !isLocalPeer) {
+      if (!seenLiveConnectionKeys.has(peerKey)) {
+        seenLiveConnectionKeys.add(peerKey);
+
+        const cachedPeer = cachedConnectionLookup.get(peerKey);
+
+        liveConnectionPeers.push(Object.assign(
+          {
+            address: (parsedPeer.address == null || parsedPeer.address === '' ? 'Connected peer' : parsedPeer.address),
+            node_id: peerNodeId,
+            port: parsedPeer.port,
+            magic: (peerMagic === '' ? 'pending' : peerMagic),
+            protocol: peerVersion.toString(),
+            version: cleanSubver,
+            services: peerServicesText,
+            services_names: peerServicesNames,
+            ping_ms: peerPingMs,
+            sent_bytes: peerBytesSent,
+            received_bytes: peerBytesReceived,
+            country: (peer.inbound === true ? 'Wallet in' : 'Wallet out'),
+            country_code: '',
+            ipv6: (parsedPeer.address != null && parsedPeer.address.length > 15),
+            table_type: 'C',
+            connection_note: (peer.inbound === true ? 'wallet inbound' : 'wallet outbound')
+          },
+          (cachedPeer || {}),
+          {
+            address: (cachedPeer && cachedPeer.address ? cachedPeer.address : parsedPeer.address),
+            node_id: peerNodeId,
+            port: (cachedPeer && cachedPeer.port ? cachedPeer.port : parsedPeer.port),
+            magic: (peerMagic === '' ? 'pending' : peerMagic),
+            protocol: (cachedPeer && cachedPeer.protocol ? cachedPeer.protocol : peerVersion.toString()),
+            version: cleanSubver,
+            services: peerServicesText,
+            services_names: peerServicesNames,
+            ping_ms: peerPingMs,
+            sent_bytes: peerBytesSent,
+            received_bytes: peerBytesReceived
+          }
+        ));
+      }
+
+      return;
+    }
+
+    if (!seenRawOnlyKeys.has(peerKey)) {
+      seenRawOnlyKeys.add(peerKey);
+
+      let badge = 'wallet-only';
+      let country = (peer.inbound === true ? 'Wallet in only' : 'Wallet out only');
+      let note = (peer.inbound === true ? 'wallet inbound' : 'wallet outbound');
+
+      if (isLocalPeer) {
+        badge = 'this-node';
+        country = 'This node';
+        note = (peer.inbound === true ? 'this node inbound' : 'this node outbound');
+      } else if (handshakePending) {
+        badge = 'handshake-pending';
+        country = (peer.inbound === true ? 'Pending in' : 'Pending out');
+        note = (peer.inbound === true ? 'inbound handshake pending' : 'outbound handshake pending');
+      }
+
+      rawOnlyPeers.push({
+        address: (parsedPeer.address == null || parsedPeer.address === '' ? 'Unresolved wallet connection' : parsedPeer.address),
+        node_id: peerNodeId,
+        port: parsedPeer.port,
+        magic: (peerMagic === '' ? 'pending' : peerMagic),
+        protocol: (peerVersion == 0 ? '-' : peerVersion.toString()),
+        version: (handshakePending ? 'Handshake pending' : (cleanSubver || 'Wallet-only connection')),
+        services: peerServicesText,
+        services_names: peerServicesNames,
+        ping_ms: peerPingMs,
+        sent_bytes: peerBytesSent,
+        received_bytes: peerBytesReceived,
+        country: country,
+        country_code: '',
+        ipv6: (parsedPeer.address != null && parsedPeer.address.length > 15),
+        table_type: 'W',
+        connection_badge: badge,
+        connection_note: note
+      });
+    }
+  });
+
+  const safeConnectionCount = (connection_count == null || connection_count === '' ? null : parseInt(connection_count));
+  const computedConnections = Math.max(liveConnectionPeers.length + rawOnlyPeers.length, rawPeers.length);
+  const totalConnections = (safeConnectionCount == null || isNaN(safeConnectionCount)
+    ? computedConnections
+    : Math.max(safeConnectionCount, computedConnections));
+  const unresolvedConnectionCount = rawOnlyPeers.filter(peer => peer.connection_badge === 'handshake-pending').length;
+  const localServiceCount = rawOnlyPeers.filter(peer => peer.connection_badge === 'this-node').length;
+  const walletOnlyConnectionCount = rawOnlyPeers.filter(peer => peer.connection_badge === 'wallet-only').length;
+
+  return {
+    connection_count: totalConnections,
+    listed_connection_count: liveConnectionPeers.length,
+    raw_peer_count: rawPeers.length,
+    raw_only_connection_count: rawOnlyPeers.length,
+    wallet_only_connection_count: walletOnlyConnectionCount,
+    local_service_count: localServiceCount,
+    unresolved_connection_count: unresolvedConnectionCount,
+    connection_peers: liveConnectionPeers,
+    addnode_peers: addnodePeers,
+    onetry_peers: onetryPeers,
+    raw_only_peers: rawOnlyPeers
+  };
+}
+
+function get_tip_staleness(cb) {
+  const staleThresholdSeconds = 24 * 60 * 60;
+
+  lib.get_blockcount(function(blockcount) {
+    if (blockcount == null)
+      return cb(false, null);
+
+    lib.get_blockhash(blockcount, function(blockhash) {
+      if (!blockhash)
+        return cb(false, blockcount);
+
+      lib.get_block(blockhash, function(block) {
+        const tipTimestamp = (block && (block.time || block.mediantime) ? (block.time || block.mediantime) : null);
+        const isStale = (tipTimestamp != null && ((Math.floor(Date.now() / 1000) - tipTimestamp) > staleThresholdSeconds));
+
+        return cb(isStale, blockcount);
+      });
+    });
+  });
+}
+
 app.use('/ext/getsummary', function(req, res) {
   const isInternal = (req.headers['x-requested-with'] != null && req.headers['x-requested-with'].toLowerCase() == 'xmlhttprequest' && req.headers.referer != null && req.headers.accept.indexOf('text/javascript') > -1 && req.headers.accept.indexOf('application/json') > -1);
 
@@ -791,64 +1769,74 @@ app.use('/ext/getsummary', function(req, res) {
     } else {
       // get the connection and block counts only if this is NOT an internal call
       get_connection_and_block_counts(!isInternal, function(connections, blockcount) {
-        lib.get_hashrate(function(hashrate) {
-          db.get_stats(settings.coin.name, function (stats) {
-            lib.get_masternodecount(function(masternodestotal) {
-              lib.get_difficulty(function(difficulty) {
-                let difficultyHybrid = '';
+        get_tip_staleness(function(isStale, liveBlockcount) {
+          lib.get_hashrate(function(hashrate) {
+            db.get_stats(settings.coin.name, function (stats) {
+              lib.get_masternodecount(function(masternodestotal) {
+                lib.get_difficulty(function(difficulty) {
+                  let difficultyHybrid = '';
 
-                if (difficulty && difficulty['proof-of-work']) {
-                  if (settings.shared_pages.difficulty == 'Hybrid') {
-                    difficultyHybrid = 'POS: ' + (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-stake'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-stake'].toString()).toString());
-                    difficulty = 'POW: ' + (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-work'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-work'].toString()).toString());
-                  } else if (settings.shared_pages.difficulty == 'POW')
-                    difficulty = (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-work'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-work'].toString()).toString());
-                  else
-                    difficulty = (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-stake'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-stake'].toString()).toString());
-                } else
-                  difficulty = (isInternal ? lib.format_decimal_string(new Decimal(difficulty.toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty.toString()).toString());
+                  if (isStale) {
+                    difficulty = 'STALE';
+                    difficultyHybrid = '';
+                    hashrate = 'STALE';
+                  } else {
+                    if (difficulty && difficulty['proof-of-work']) {
+                      if (settings.shared_pages.difficulty == 'Hybrid') {
+                        difficultyHybrid = 'POS: ' + (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-stake'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-stake'].toString()).toString());
+                        difficulty = 'POW: ' + (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-work'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-work'].toString()).toString());
+                      } else if (settings.shared_pages.difficulty == 'POW')
+                        difficulty = (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-work'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-work'].toString()).toString());
+                      else
+                        difficulty = (isInternal ? lib.format_decimal_string(new Decimal(difficulty['proof-of-stake'].toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty['proof-of-stake'].toString()).toString());
+                    } else
+                      difficulty = (isInternal ? lib.format_decimal_string(new Decimal(difficulty.toString()), { minFractionDigits: 2, maxFractionDigits: 8 }) : new Decimal(difficulty.toString()).toString());
 
-                if (hashrate == `${settings.localization.ex_error}: ${settings.localization.check_console}`)
-                  hashrate = 0;
-
-                let mn_total = 0;
-                let mn_enabled = 0;
-
-                // check if the masternode count api is enabled
-                if (settings.api_page.public_apis.rpc.getmasternodecount.enabled == true && settings.api_cmds['getmasternodecount'] != null && settings.api_cmds['getmasternodecount'] != '') {
-                  // masternode count api is available
-                  if (masternodestotal) {
-                    if (masternodestotal.total)
-                      mn_total = masternodestotal.total;
-
-                    if (masternodestotal.enabled)
-                      mn_enabled = masternodestotal.enabled;
+                    if (hashrate == `${settings.localization.ex_error}: ${settings.localization.check_console}`)
+                      hashrate = 0;
                   }
-                }
 
-                let send_data = {
-                  difficulty: (difficulty == null || difficulty == '' ? '-' : difficulty),
-                  difficultyHybrid: difficultyHybrid,
-                  supply: new Decimal(stats == null || stats.supply == null ? '0' : stats.supply.toString()).toFixed(),
-                  hashrate: new Decimal(hashrate.toString()).toFixed(),
-                  lastPrice: new Decimal(stats == null || stats.last_price == null ? '0' : stats.last_price.toString()).toFixed(),
-                  lastUSDPrice: new Decimal(stats == null || stats.last_usd_price == null ? '0' : stats.last_usd_price.toString()).toFixed(),
-                  connections: (connections ? connections : '-'),
-                  blockcount: (blockcount ? blockcount : '-'),
-                  masternodeCountOnline: (masternodestotal && mn_enabled != 0 ? mn_enabled : '-'),
-                  masternodeCountOffline: (masternodestotal && mn_total != 0 ? Math.floor(mn_total - mn_enabled) : '-')
-                };
+                  let mn_total = 0;
+                  let mn_enabled = 0;
 
-                if (isInternal) {
-                  send_data.marketcap = lib.format_decimal_string(new Decimal(new Decimal(send_data.lastPrice.toString()).toFixed(8)).mul(send_data.supply), { minFractionDigits: 2, maxFractionDigits: 8 });
-                  send_data.usdMarketcap = lib.format_decimal_string(new Decimal(new Decimal(send_data.lastUSDPrice.toString()).toFixed(8)).mul(send_data.supply), { minFractionDigits: 2, maxFractionDigits: 8 });
-                  send_data.lastPrice = lib.format_decimal_string(new Decimal(send_data.lastPrice.toString()), { minFractionDigits: 2, maxFractionDigits: 8 });
-                  send_data.lastUSDPrice = lib.format_decimal_string(new Decimal(send_data.lastUSDPrice.toString()), { minFractionDigits: 2, maxFractionDigits: 8 });
-                  send_data.supply = lib.format_decimal_string(new Decimal(new Decimal(send_data.supply.toString()).toFixed(0)), { minFractionDigits: 0, maxFractionDigits: 0 });
-                  send_data.hashrate = lib.format_decimal_string(new Decimal(hashrate.toString()), { minFractionDigits: 2, maxFractionDigits: 8 });
-                }
+                  // check if the masternode count api is enabled
+                  if (settings.api_page.public_apis.rpc.getmasternodecount.enabled == true && settings.api_cmds['getmasternodecount'] != null && settings.api_cmds['getmasternodecount'] != '') {
+                    // masternode count api is available
+                    if (masternodestotal) {
+                      if (masternodestotal.total)
+                        mn_total = masternodestotal.total;
 
-                res.send(send_data);
+                      if (masternodestotal.enabled)
+                        mn_enabled = masternodestotal.enabled;
+                    }
+                  }
+
+                  let send_data = {
+                    difficulty: (difficulty == null || difficulty == '' ? '-' : difficulty),
+                    difficultyHybrid: difficultyHybrid,
+                    supply: new Decimal(stats == null || stats.supply == null ? '0' : stats.supply.toString()).toFixed(),
+                    hashrate: (isStale ? 'STALE' : new Decimal(hashrate.toString()).toFixed()),
+                    lastPrice: new Decimal(stats == null || stats.last_price == null ? '0' : stats.last_price.toString()).toFixed(),
+                    lastUSDPrice: new Decimal(stats == null || stats.last_usd_price == null ? '0' : stats.last_usd_price.toString()).toFixed(),
+                    connections: (connections ? connections : '-'),
+                    blockcount: (blockcount ? blockcount : (liveBlockcount || '-')),
+                    masternodeCountOnline: (masternodestotal && mn_enabled != 0 ? mn_enabled : '-'),
+                    masternodeCountOffline: (masternodestotal && mn_total != 0 ? Math.floor(mn_total - mn_enabled) : '-')
+                  };
+
+                  if (isInternal) {
+                    send_data.marketcap = lib.format_decimal_string(new Decimal(new Decimal(send_data.lastPrice.toString()).toFixed(8)).mul(send_data.supply), { minFractionDigits: 2, maxFractionDigits: 8 });
+                    send_data.usdMarketcap = lib.format_decimal_string(new Decimal(new Decimal(send_data.lastUSDPrice.toString()).toFixed(8)).mul(send_data.supply), { minFractionDigits: 2, maxFractionDigits: 8 });
+                    send_data.lastPrice = lib.format_decimal_string(new Decimal(send_data.lastPrice.toString()), { minFractionDigits: 2, maxFractionDigits: 8 });
+                    send_data.lastUSDPrice = lib.format_decimal_string(new Decimal(send_data.lastUSDPrice.toString()), { minFractionDigits: 2, maxFractionDigits: 8 });
+                    send_data.supply = lib.format_decimal_string(new Decimal(new Decimal(send_data.supply.toString()).toFixed(0)), { minFractionDigits: 0, maxFractionDigits: 0 });
+
+                    if (!isStale)
+                      send_data.hashrate = lib.format_decimal_string(new Decimal(hashrate.toString()), { minFractionDigits: 2, maxFractionDigits: 8 });
+                  }
+
+                  res.send(send_data);
+                });
               });
             });
           });
@@ -859,9 +1847,8 @@ app.use('/ext/getsummary', function(req, res) {
     res.end(settings.localization.method_disabled);
 });
 
-app.use('/ext/getnetworkpeers', function(req, res) {
-  // check if the getnetworkpeers api is enabled or else check the headers to see if it matches an internal ajax request from the explorer itself (TODO: come up with a more secure method of whitelisting ajax calls from the explorer)
-  if ((settings.api_page.enabled == true && settings.api_page.public_apis.ext.getnetworkpeers.enabled == true) || (req.headers['x-requested-with'] != null && req.headers['x-requested-with'].toLowerCase() == 'xmlhttprequest' && req.headers.referer != null && req.headers.accept.indexOf('text/javascript') > -1 && req.headers.accept.indexOf('application/json') > -1)) {
+app.get(['/ext/getnetworkpeers', '/ext/getnetworkpeers/{*splat}'], function(req, res) {
+  if (settings.api_page.enabled == true && settings.api_page.public_apis.ext.getnetworkpeers.enabled == true) {
     // split url suffix by forward slash and remove blank entries
     const split = req.url.split('/').filter(function(v) { return v; });
     let internal = false;
@@ -889,6 +1876,80 @@ app.use('/ext/getnetworkpeers', function(req, res) {
     res.end(settings.localization.method_disabled);
 });
 
+app.get('/ext/getpeerfqdncache/internal', function(req, res) {
+  refresh_known_peer_fqdn_cache(false).then(function(cache) {
+    return res.json(serialize_known_peer_fqdn_cache(cache));
+  }).catch(function() {
+    return res.status(503).json({ error: 'cache unavailable' });
+  });
+});
+
+function build_network_overview_snapshot() {
+  return new Promise(function(resolve) {
+    lib.get_connectioncount(function(connectionCount) {
+      db.get_peers(false, function(connectionPeers, addnodePeers, onetryPeers) {
+        lib.get_peerinfo(function(rawWalletPeers) {
+          const overview = build_network_overview(connectionCount, connectionPeers, addnodePeers, onetryPeers, rawWalletPeers);
+
+          annotate_peer_fqdns([
+            overview.connection_peers,
+            overview.addnode_peers,
+            overview.onetry_peers,
+            overview.raw_only_peers
+          ]).then(function() {
+            overview.seed_aggregators = build_seed_aggregator_summaries();
+
+            return resolve_public_node_endpoint().then(function(publicEndpoint) {
+              annotate_public_node_endpoint(overview, publicEndpoint);
+              return resolve(overview);
+            }).catch(function() {
+              return resolve(overview);
+            });
+          }).catch(function() {
+            return resolve(overview);
+          });
+        });
+      });
+    });
+  });
+}
+
+async function get_network_overview_snapshot() {
+  const now = Date.now();
+
+  if (networkOverviewCache.value != null && networkOverviewCache.expiresAt > now)
+    return networkOverviewCache.value;
+
+  if (networkOverviewCache.inFlight != null)
+    return networkOverviewCache.inFlight;
+
+  const previousValue = networkOverviewCache.value;
+  const inFlight = build_network_overview_snapshot().then(function(value) {
+    networkOverviewCache.value = value;
+    networkOverviewCache.expiresAt = Date.now() + NETWORK_OVERVIEW_TTL_MS;
+    return value;
+  }).catch(function(error) {
+    if (previousValue != null)
+      return previousValue;
+
+    throw error;
+  }).finally(function() {
+    if (networkOverviewCache.inFlight === inFlight)
+      networkOverviewCache.inFlight = null;
+  });
+
+  networkOverviewCache.inFlight = inFlight;
+  return inFlight;
+}
+
+app.get(['/ext/getnetworkoverview', '/ext/getnetworkoverview/internal'], function(req, res) {
+  get_network_overview_snapshot().then(function(overview) {
+    return res.json(overview);
+  }).catch(function() {
+    return res.status(503).json({ error: 'network overview unavailable' });
+  });
+});
+
 // get the list of masternodes from local collection
 app.use('/ext/getmasternodelist', function(req, res) {
   // check if the getmasternodelist api is enabled or else check the headers to see if it matches an internal ajax request from the explorer itself (TODO: come up with a more secure method of whitelisting ajax calls from the explorer)
@@ -912,7 +1973,12 @@ app.use('/ext/getmasternodelist', function(req, res) {
 app.use('/ext/getmasternoderewards/:hash/:since', function(req, res) {
   // check if the getmasternoderewards api is enabled
   if (settings.api_page.enabled == true && settings.api_page.public_apis.ext.getmasternoderewards.enabled == true) {
-    db.get_masternode_rewards(req.params.hash, req.params.since, function(rewards) {
+    if (!inputguard.isAddressLike(req.params.hash))
+      return inputguard.reject(res, 400, 'Invalid address');
+
+    const since = inputguard.boundedInt(req.params.since, 0, 0, inputguard.MAX_CHAIN_HEIGHT);
+
+    db.get_masternode_rewards(req.params.hash, since, function(rewards) {
       if (rewards != null) {
         // loop through the tx list to fix vout values and remove unnecessary data such as the always empty vin array and the mongo _id and __v keys
         for (i = 0; i < rewards.length; i++) {
@@ -928,7 +1994,7 @@ app.use('/ext/getmasternoderewards/:hash/:since', function(req, res) {
         // return list of masternode rewards
         res.json(rewards);
       } else
-        res.send({error: "failed to retrieve masternode rewards", hash: req.params.hash, since: req.params.since});
+        res.send({error: "failed to retrieve masternode rewards", hash: req.params.hash, since: since});
     });
   } else
     res.end(settings.localization.method_disabled);
@@ -938,13 +2004,18 @@ app.use('/ext/getmasternoderewards/:hash/:since', function(req, res) {
 app.use('/ext/getmasternoderewardstotal/:hash/:since', function(req, res) {
   // check if the getmasternoderewardstotal api is enabled
   if (settings.api_page.enabled == true && settings.api_page.public_apis.ext.getmasternoderewardstotal.enabled == true) {
-    db.get_masternode_rewards_totals(req.params.hash, req.params.since, function(total_rewards) {
+    if (!inputguard.isAddressLike(req.params.hash))
+      return inputguard.reject(res, 400, 'Invalid address');
+
+    const since = inputguard.boundedInt(req.params.since, 0, 0, inputguard.MAX_CHAIN_HEIGHT);
+
+    db.get_masternode_rewards_totals(req.params.hash, since, function(total_rewards) {
       if (total_rewards != null) {
         // return the total of masternode rewards
         res.setHeader('content-type', 'text/plain');
         res.end(total_rewards.toFixed(8));
       } else
-        res.send({error: "failed to retrieve masternode rewards", hash: req.params.hash, since: req.params.since});
+        res.send({error: "failed to retrieve masternode rewards", hash: req.params.hash, since: since});
     });
   } else
     res.end(settings.localization.method_disabled);
@@ -955,10 +2026,8 @@ app.use('/ext/getorphanlist/:start/:length', function(req, res) {
   // check the headers to see if it matches an internal ajax request from the explorer itself (TODO: come up with a more secure method of whitelisting ajax calls from the explorer)
   if (req.headers['x-requested-with'] != null && req.headers['x-requested-with'].toLowerCase() == 'xmlhttprequest' && req.headers.referer != null && req.headers.accept.indexOf('text/javascript') > -1 && req.headers.accept.indexOf('application/json') > -1) {
     // fix parameters
-    if (typeof req.params.start === 'undefined' || isNaN(req.params.start) || req.params.start < 0)
-      req.params.start = 0;
-    if (typeof req.params.length === 'undefined' || isNaN(req.params.length))
-      req.params.length = 10;
+    req.params.start = inputguard.boundedInt(req.params.start, 0, 0, inputguard.MAX_API_OFFSET);
+    req.params.length = inputguard.boundedInt(req.params.length, 10, 1, 100);
 
     // get the orphan list from local collection
     db.get_orphans(req.params.start, req.params.length, function(orphans, count) {
@@ -988,7 +2057,7 @@ app.use('/ext/getlastupdated/:section', function(req, res) {
   // check the headers to see if it matches an internal ajax request from the explorer itself (TODO: come up with a more secure method of whitelisting ajax calls from the explorer)
   if (req.headers['x-requested-with'] != null && req.headers['x-requested-with'].toLowerCase() == 'xmlhttprequest' && req.headers.referer != null && req.headers.accept.indexOf('text/javascript') > -1 && req.headers.accept.indexOf('application/json') > -1) {
     // fix parameters
-    if (req.params.section == null)
+    if (req.params.section == null || !inputguard.isSafeToken(req.params.section))
       req.params.section = '';
 
     switch (req.params.section.toLowerCase()) {
@@ -1013,20 +2082,6 @@ app.use('/ext/getnetworkchartdata', function(req, res) {
     else
       res.send();
   });
-});
-
-app.use('/system/restartexplorer', function(req, res, next) {
-  // check to ensure this special cmd is only executed by the local server
-  if (req._remoteAddress != null && req._remoteAddress.indexOf('127.0.0.1') > -1) {
-    // send a msg to the cluster process telling it to restart
-    process.send('restart');
-    res.end();
-  } else {
-    // show the error page
-    var err = new Error(settings.localization.error_not_found);
-    err.status = 404;
-    next(err);
-  }
 });
 
 var market_data = [];

@@ -37,10 +37,7 @@ block content
             strong=settings.localization.ex_warning
           div="This is an orphaned block"
     if settings.block_page.page_header.show_img == true || settings.block_page.page_header.show_title == true || settings.block_page.page_header.show_description == true
-      #page-header-container(style='align-items:' + (settings.block_page.page_header.show_img == true && settings.block_page.page_header.show_title == true && settings.block_page.page_header.show_description == true ? 'flex-start' : 'center'))
-        if settings.block_page.page_header.show_img == true
-          #header-img-container
-            img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
+      #page-header-container
         #page-title-container
           if settings.block_page.page_header.show_title == true
             h3#page-title #{settings.localization.block_title.replace('{1}', settings.coin.name)}
@@ -50,6 +47,7 @@ block content
                 .sub-page-header.text-muted=settings.localization.block_description.replace('{1}', settings.coin.name).replace('{2}', block.height)
             else
               .sub-page-header.text-muted=settings.localization.block_description.replace('{1}', settings.coin.name).replace('{2}', block.height)
+        +defcoinPageBranding()
       .cardSpacer.clearfix
     .card.card-default.border-0.cardSpacer
       .card-header

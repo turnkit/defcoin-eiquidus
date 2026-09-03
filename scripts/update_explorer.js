@@ -148,49 +148,13 @@ if (reloadWebserver == true) {
       exit();
     });
   } else {
-    // check if the forever pid file exists and is valid
-    if (fs.existsSync('./tmp/forever.pid') && lib.is_locked(['forever'], true) == true) {
-      // this pid is active
-      pidActive = true;
-    }
-
-    // check if the forever.pid is active
-    if (pidActive == true) {
-      // compile css and initialize database
-      init_database(function() {
-        console.log(`\n${settings.localization.reloading_explorer}.. ${settings.localization.please_wait}..\n`);
-
-        // reload forever using the restart function
-        execSync(`forever restart explorer`, {stdio : 'inherit'});
-
-        // add a new line for better spacing
-        console.log('');
-
-        // finish the script
-        exit();
-      });
-    } else {
-      const request = require('postman-request');
-
-      // try executing the restart explorer api
-      request({uri: `http://localhost:${settings.webserver.port}/system/restartexplorer`, timeout: 1000}, function (error, response, summary) {
-        // check if there was an error
-        if (error != null) {
-          console.log('Webserver is not runnning\n');
-
-          // finish the script
-          exit();
-        } else {
-          // compile css and initialize database
-          init_database(function() {
-            console.log(`\n${settings.localization.reloading_explorer}.. ${settings.localization.please_wait}..\n`);
-
-            // finish the script
-            exit();
-          });
-        }
-      });
-    }
+    // Direct-node and systemd deployments are restarted by their supervisor.
+    // Do not expose an unauthenticated HTTP endpoint capable of restarting the
+    // process merely to support this maintenance helper.
+    init_database(function() {
+      console.log('\nExplorer files and database initialization are updated. Restart the supervised service to load code changes.\n');
+      exit();
+    });
   }
 } else {
   // finish the script

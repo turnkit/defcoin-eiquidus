@@ -1,0 +1,72 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title Defcoin Paper Wallet
+          .sub-page-header.text-muted
+            | Client-side key generation only. No server-side wallet creation, no CDN dependency, and a direct path to save the generator for offline use.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  - var walletTabs = Array.isArray(paperWalletTabs) && paperWalletTabs.length > 0 ? paperWalletTabs : ['singlewallet', 'paperwallet', 'bulkwallet', 'brainwallet', 'vanitywallet', 'splitwallet', 'detailwallet']
+  - var selectedWalletTab = typeof requestedTab === 'string' && walletTabs.indexOf(requestedTab) > -1 ? requestedTab : walletTabs[0]
+  - var paperWalletEmbedPath = assetPath(paperWalletStaticPath) + '?embed=1&tab=' + selectedWalletTab
+  - var paperWalletGeneratorPath = assetPath(paperWalletStaticPath) + '?tab=' + selectedWalletTab
+  - var paperWalletBundleDownloadPath = assetPath(typeof paperWalletBundlePath === 'string' && paperWalletBundlePath !== '' ? paperWalletBundlePath : paperWalletStaticPath)
+  - var walletTabMeta = {}
+  - walletTabMeta.singlewallet = { label: 'Single Wallet', summary: 'Generate one new public address and private key pair.' }
+  - walletTabMeta.paperwallet = { label: 'Printable Paper Wallet', summary: 'Create a ready-to-print sheet with QR codes for cold storage or gifting.' }
+  - walletTabMeta.bulkwallet = { label: 'Bulk Wallets', summary: 'Generate many receiving addresses at once for labels, reserves, or distribution.' }
+  - walletTabMeta.brainwallet = { label: 'Brain Wallet', summary: 'Derive a wallet from a passphrase. Only use this if you understand the security risk.' }
+  - walletTabMeta.vanitywallet = { label: 'Vanity Wallet', summary: 'Build a custom-looking address prefix using the split-key workflow.' }
+  - walletTabMeta.splitwallet = { label: 'Split Wallet', summary: 'Split one private key into multiple shares for safer backup handling.' }
+  - walletTabMeta.detailwallet = { label: 'Wallet Details', summary: 'Inspect an existing key, convert formats, or decrypt BIP38 output.' }
+  - var selectedWalletMeta = walletTabMeta[selectedWalletTab] || walletTabMeta.paperwallet || walletTabMeta.singlewallet
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Wallet Tools
+      .card-body
+        .defcoin-callout
+          p.mb-2.defcoin-helper
+            | Pick the tool that matches what you need to do. The wrapper below simply opens the same Defcoin generator in the right mode first, so you do not have to hunt through the internal tabs.
+          .defcoin-pill-row
+            each walletTab in walletTabs
+              - const tabMeta = walletTabMeta[walletTab]
+              a.btn(class=walletTab === selectedWalletTab ? 'btn-primary' : 'btn-outline-secondary', href='?tab=' + walletTab)= tabMeta.label
+          p.mb-0.defcoin-helper
+            strong= selectedWalletMeta.label + ': '
+            | #{selectedWalletMeta.summary}
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Offline-First Warning
+      .card-body
+        .defcoin-callout
+          p.mb-2.defcoin-helper
+            | This page wraps a local Defcoin fork of the MIT-licensed liteaddress.org generator. The safest workflow is still to download the local bundle, extract it to a folder, disconnect from the network, and only then create and print paper wallets.
+          p.mb-2.defcoin-helper
+            | Do not generate a paper wallet on a machine you do not trust. Anyone who gets the private key gets the coins.
+          p.mb-0.defcoin-helper
+            | The generator below stays client-side. The downloadable bundle includes the HTML tool plus the Defcoin print artwork it now uses.
+        .defcoin-callout.mt-3
+          p.mb-2.defcoin-helper
+            | Source ancestry:
+            a.ms-1(href='https://github.com/litecoin-project/liteaddress.org', target='_blank', rel='noopener') litecoin-project/liteaddress.org
+            |  and
+            a.ms-1(href='https://github.com/pointbiz/bitaddress.org', target='_blank', rel='noopener') pointbiz/bitaddress.org
+          p.mb-0.defcoin-helper
+            | This local fork is retargeted for Defcoin addresses and keys. The public wrapper stays inside the DC903 site shell, while the downloadable bundle stays client-side and offline-capable after extraction.
+        .defcoin-pill-row
+          a.btn.btn-primary(href=paperWalletGeneratorPath, target='_blank', rel='noopener') Open This Tool Only
+          a.btn.btn-outline-secondary(href=paperWalletBundleDownloadPath, download='defcoin-paperwallet-bundle.zip') Download Local Bundle
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Embedded Generator
+      .card-body
+        iframe.defcoin-paperwallet-frame(src=paperWalletEmbedPath, sandbox='allow-scripts allow-same-origin')

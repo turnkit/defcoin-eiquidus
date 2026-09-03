@@ -1,0 +1,66 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title Defcoin Faucet
+          .sub-page-header.text-muted
+            | A rate-limited public faucet with a dedicated donation chest, daily abuse controls, and a disabled-by-default payout switch until the chest is configured and funded.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  script(type='application/json', id='defcoinFaucetStatusData') !{JSON.stringify(faucetStatus || null)}
+  script(src=assetPath('/js/defcoin-faucet.js'))
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Faucet Status
+      .card-body
+        if faucetError
+          .alert.alert-warning(role='alert')= faucetError
+        #faucetStatusAlert.alert.alert-warning(role='alert')
+          if faucetStatus != null && faucetStatus.config != null && faucetStatus.config.enabled == true
+            | The faucet is enabled.
+          else
+            | The faucet is built but currently disabled until a dedicated payout chest is configured and funded.
+        .defcoin-status-grid
+          .defcoin-stat-card
+            span.stat-label Faucet Enabled
+            span.stat-value#faucetEnabledLabel= (faucetStatus != null && faucetStatus.config != null && faucetStatus.config.enabled == true ? 'Yes' : 'No')
+          .defcoin-stat-card
+            span.stat-label Donation Chest
+            span.stat-value#faucetChestBalance= (faucetStatus != null && faucetStatus.chest != null ? faucetStatus.chest.balanceLabel + ' DFC' : 'Unavailable')
+          .defcoin-stat-card
+            span.stat-label Suggested Claim
+            span.stat-value#faucetSuggestedPayout= (faucetStatus != null ? faucetStatus.suggestedPayoutLabel + ' DFC' : 'Unavailable')
+          .defcoin-stat-card
+            span.stat-label Recent Paid Claims
+            span.stat-value#faucetRecentClaims= (faucetStatus != null ? faucetStatus.recentApprovedClaimCount : 'Unavailable')
+        .defcoin-callout
+          p.mb-2.defcoin-helper
+            | Claims are limited to one successful payout per day per IP, subnet, browser fingerprint, and destination address. Repeated abuse can escalate to a ban entry.
+          p.mb-2.defcoin-helper
+            | The payout formula is reserve-aware: it only spends above the configured floor, clamps each claim between safe minimum and maximum values, and can shrink when the chest is low or claimant volume rises.
+          p.mb-0.defcoin-helper
+            | Donation chest address:
+            if faucetStatus != null && faucetStatus.chest != null && faucetStatus.chest.donationAddress
+              code.ms-1= faucetStatus.chest.donationAddress
+            else
+              span.ms-1 Not configured yet
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Claim Form
+      .card-body
+        form#defcoinFaucetClaimForm
+          .defcoin-form-grid
+            .form-group
+              label.form-label(for='faucetAddress') Destination Address
+              input#faucetAddress.form-control(type='text', placeholder='Enter a Defcoin wallet address')
+          .defcoin-pill-row
+            button#faucetSubmit.btn.btn-primary(type='submit') Request Faucet Coins
+            span.defcoin-tool-subtext The live claim flow is implemented now, but disabled mode will reject requests cleanly until the chest is activated.
+        #faucetClaimResult.defcoin-tool-subtext.mt-3 Waiting for a request.

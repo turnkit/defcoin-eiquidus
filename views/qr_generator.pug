@@ -1,0 +1,43 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title QR Generator
+          .sub-page-header.text-muted
+            | Generate a local Defcoin payment QR code without depending on any external tool host.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  - const customAssetBase = (typeof assetPrefix !== 'undefined' && assetPrefix != null ? assetPrefix : '')
+  script(src=customAssetBase + '/js/qrcode.min.js')
+  script(src=customAssetBase + '/js/defcoin-qr-generator.js')
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Defcoin Payment QR
+      .card-body
+        .defcoin-qr-shell
+          .defcoin-page-grid
+            .form-group
+              label.form-label(for='qrAddress') Wallet Address
+              input#qrAddress.form-control(type='text', value='DKKcPE99YsjHCSd6YaXAmJB2gbGhWietzP')
+            .defcoin-form-grid
+              .form-group
+                label.form-label(for='qrAmount') Amount
+                input#qrAmount.form-control(type='text', placeholder='Optional')
+              .form-group
+                label.form-label(for='qrLabel') Label
+                input#qrLabel.form-control(type='text', placeholder='Optional')
+            .form-group
+              label.form-label(for='qrMessage') Message
+              input#qrMessage.form-control(type='text', placeholder='Optional')
+            .defcoin-pill-row
+              button#qrCopy.btn.btn-primary(type='button') Copy URI
+              button#qrReset.btn.btn-outline-secondary(type='button') Reset
+            span.defcoin-uri#qrUri defcoin:DKKcPE99YsjHCSd6YaXAmJB2gbGhWietzP
+          .defcoin-qr-panel
+            #qrcode

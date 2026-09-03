@@ -1,6 +1,51 @@
 extends layout
 
 block content
+  style.
+    .defcoin-services-flags {
+      display: inline-grid;
+      grid-template-columns: repeat(8, 1.15ch);
+      column-gap: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+      white-space: nowrap;
+      line-height: 0.95;
+      vertical-align: middle;
+    }
+    .defcoin-service-flag {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 2em;
+      text-align: center;
+    }
+    .defcoin-service-flag span {
+      display: block;
+      height: 0.95em;
+    }
+    .defcoin-service-flag.is-on {
+      color: inherit;
+      font-weight: 600;
+    }
+    .defcoin-service-flag.is-off {
+      color: rgba(180, 190, 200, 0.34);
+      font-weight: 400;
+    }
+    #connections-table tbody td {
+      color: #f2f5f8 !important;
+    }
+    #connections-table tbody td .text-muted {
+      color: #bcc6d0 !important;
+    }
+    #connections-table tbody td .defcoin-peer-clamp,
+    #connections-table tbody td .defcoin-peer-address,
+    #connections-table tbody td .defcoin-service-flag.is-on {
+      color: #f2f5f8 !important;
+    }
+    #connections-table tbody td .defcoin-service-flag.is-off {
+      color: rgba(180, 190, 200, 0.34) !important;
+    }
   script.
     function generateLengthMenu(setting_txPerPage, lengthMenuOpts) {
       var addedLength = false;
@@ -17,35 +62,1237 @@ block content
         lengthMenuOpts.push(setting_txPerPage);
       return lengthMenuOpts;
     }
+    function buildConnectionRows(overview) {
+      const rows = (overview.connection_peers || []).map((peer) => Object.assign({}, peer));
+
+      (overview.raw_only_peers || []).forEach((peer) => {
+        rows.push(Object.assign({}, peer));
+      });
+
+      return rows;
+    }
+    function buildUniqueCommandPeers(peers) {
+      const rows = [];
+      const seen = new Set();
+
+      (peers || []).forEach((peer) => {
+        const endpoint = formatPreferredPeerEndpoint(peer);
+        const key = endpoint.toLowerCase();
+
+        if (endpoint === '' || seen.has(key))
+          return;
+
+        seen.add(key);
+        rows.push(Object.assign({}, peer));
+      });
+
+      return rows;
+    }
+    function buildFallbackCommandPeers(overview) {
+      return buildUniqueCommandPeers(buildConnectionRows(overview));
+    }
+    function resolveCommandPeers(preferredPeers, overview) {
+      const preferred = buildUniqueCommandPeers(preferredPeers || []);
+
+      if (preferred.length > 0)
+        return preferred;
+
+      return buildFallbackCommandPeers(overview);
+    }
+    function normalizePeerLookupKey(address, port) {
+      return `${address || ''}:${port || ''}`;
+    }
+    function isIpv6Address(address) {
+      return !!address && address.indexOf(':') > -1 && address.indexOf('.') == -1;
+    }
+    function isIpv4Address(address) {
+      const parts = (address || '').toString().trim().split('.');
+      return parts.length === 4 && parts.every(function(part) {
+        return /^\d{1,3}$/.test(part) && parseInt(part, 10) >= 0 && parseInt(part, 10) <= 255;
+      });
+    }
+    function parsePeerAddressForSort(address, fallbackPort) {
+      const raw = ((address || '') + '').trim();
+      let host = raw;
+      let port = parseInt(fallbackPort || 0, 10) || 0;
+      const bracket = raw.match(/^\[([^\]]+)\](?::(\d+))?$/);
+      const ipv4WithPort = raw.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?$/);
+
+      if (bracket) {
+        host = bracket[1];
+        if (bracket[2])
+          port = parseInt(bracket[2], 10) || 0;
+      } else if (ipv4WithPort) {
+        host = ipv4WithPort[1];
+        if (ipv4WithPort[2])
+          port = parseInt(ipv4WithPort[2], 10) || 0;
+      }
+
+      return {host: host.toLowerCase(), port: port};
+    }
+    function ipv6SortBody(host) {
+      const parts = (host || '').toLowerCase().split('::');
+      let groups = [];
+
+      if (parts.length === 2) {
+        const left = parts[0] == '' ? [] : parts[0].split(':');
+        const right = parts[1] == '' ? [] : parts[1].split(':');
+        const missing = Math.max(0, 8 - left.length - right.length);
+        groups = left.concat(Array(missing).fill('0')).concat(right);
+      } else {
+        groups = host.split(':');
+      }
+
+      while (groups.length < 8)
+        groups.push('0');
+
+      return groups.slice(0, 8).map(function(group) {
+        const value = parseInt(group || '0', 16);
+        return ('0000' + (isNaN(value) ? 0 : value).toString(16)).slice(-4);
+      }).join(':');
+    }
+    function addressSortKey(address, fallbackPort) {
+      const parsed = parsePeerAddressForSort(address, fallbackPort);
+      const host = parsed.host;
+      const portKey = ('00000' + parsed.port).slice(-5);
+
+      if (isIpv4Address(host)) {
+        return '0|' + host.split('.').map(function(part) {
+          return ('000' + (parseInt(part, 10) || 0)).slice(-3);
+        }).join('.') + '|' + portKey;
+      }
+
+      if (host.indexOf(':') > -1)
+        return '1|' + ipv6SortBody(host) + '|' + portKey;
+
+      return '2|' + host + '|' + portKey;
+    }
+    function escapeHtml(value) {
+      return $('<div>').text(value == null ? '' : value.toString()).html();
+    }
+    function nonBreakingSpaces(value) {
+      return escapeHtml(value).replace(/ /g, '&nbsp;');
+    }
+    function mutedDash(title) {
+      return `<span class="text-muted" title="${escapeHtml(title || 'No value reported.')}">&mdash;</span>`;
+    }
+    function tooltipText(value, title, className) {
+      const text = ((value || '') + '').trim();
+      const cls = className ? ` class="${escapeHtml(className)}"` : '';
+
+      if (text === '' || text === '-')
+        return mutedDash(title);
+
+      return `<span${cls} title="${escapeHtml(title || text)}">${escapeHtml(text)}</span>`;
+    }
+    function clampPeerText(value, title) {
+      const text = ((value || '') + '').trim();
+
+      if (text === '')
+        return mutedDash(title);
+
+      return `<span class="defcoin-peer-clamp" title="${escapeHtml(title || text)}">${escapeHtml(text)}</span>`;
+    }
+    function sortNumberValue(value) {
+      const parsed = parseInt(value || 0, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    function formatPeerNumber(value) {
+      const parsed = parseInt(value || 0, 10);
+      return isNaN(parsed) ? '-' : parsed.toString();
+    }
+    function formatPeerPing(value) {
+      const parsed = parseInt(value || 0, 10);
+      return isNaN(parsed) || parsed <= 0 ? '-' : `${parsed} ms`;
+    }
+    function formatPeerBytes(value) {
+      const parsed = parseInt(value || 0, 10);
+
+      if (isNaN(parsed) || parsed < 0)
+        return '-';
+
+      if (parsed < 1024)
+        return `${parsed} B`;
+
+      if (parsed < 1024 * 1024)
+        return `${(parsed / 1024).toFixed(1)} KB`;
+
+      return `${(parsed / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    const PEER_SERVICE_FLAGS = [
+      {code: 'N', display: ['N'], bit: 1 << 0, name: 'NODE_NETWORK', meaning: 'claims it can serve full blocks, which matters for initial block download and full-node syncing'},
+      {code: 'G', display: ['G'], bit: 1 << 1, name: 'NODE_GETUTXO', meaning: 'claims support for the old getutxo query service; most modern peers do not rely on this'},
+      {code: 'B', display: ['B'], bit: 1 << 2, name: 'NODE_BLOOM', meaning: 'claims support for Bloom-filtered SPV queries; useful for older light clients, but weaker for privacy'},
+      {code: 'W', display: ['W'], bit: 1 << 3, name: 'NODE_WITNESS', meaning: 'claims it can relay witness-aware data inherited from Bitcoin/Litecoin protocol evolution'},
+      {code: 'CF', display: ['C', 'F'], bit: 1 << 6, name: 'NODE_COMPACT_FILTERS', meaning: 'claims it can serve compact block filters for modern light-client scanning'},
+      {code: 'NL', display: ['N', 'L'], bit: 1 << 10, name: 'NODE_NETWORK_LIMITED', meaning: 'claims it can serve a limited recent block window instead of full history'},
+      {code: 'M', display: ['M'], bit: 0x01000000, name: 'NODE_MWEB', meaning: 'Litecoin MWEB service bit inherited from upstream code; not a Defcoin feature signal by itself'},
+      {code: 'LC', display: ['L', 'C'], bit: 0x02000000, name: 'NODE_MWEB_LIGHT_CLIENT', meaning: 'Litecoin MWEB light-client service bit inherited from upstream code; not a Defcoin feature signal by itself'}
+    ];
+    function parsePeerServices(value) {
+      const raw = ((value || '') + '').trim();
+      const services = parseInt(raw || '0', 16);
+
+      return isFinite(services) ? services : 0;
+    }
+    function formatPeerServices(value) {
+      const services = parsePeerServices(value);
+
+      return PEER_SERVICE_FLAGS.map(function(flag) {
+        return flag.code;
+      }).join('');
+    }
+    function formatPeerServicesHtml(value, serviceNames) {
+      const raw = ((value || '-') + '').trim();
+      const services = parsePeerServices(raw);
+      const details = PEER_SERVICE_FLAGS.map(function(flag) {
+        const enabled = (services & flag.bit) !== 0;
+        return `${enabled ? 'ON ' : 'off'} ${flag.code} (${flag.name}): ${flag.meaning}`;
+      });
+      const title = [
+        'Service flags are capabilities the peer advertised during its version handshake.',
+        'Wallets use these flags to choose peers for block serving, light-client queries, and relay features.',
+        'They are self-reported capabilities, not proof that the peer is healthy or honest.',
+        `Raw service mask: ${raw}`
+      ]
+        .concat(serviceNames ? [`Node-reported names: ${serviceNames}`] : [])
+        .concat(details)
+        .join('\n');
+      const flags = PEER_SERVICE_FLAGS.map(function(flag) {
+        const enabled = (services & flag.bit) !== 0;
+        const cls = enabled ? 'defcoin-service-flag is-on' : 'defcoin-service-flag is-off';
+        const label = flag.display.map(function(part) {
+          return `<span>${escapeHtml(part)}</span>`;
+        }).join('');
+
+        return `<span class="${cls}">${label}</span>`;
+      }).join('');
+
+      return `<span class="defcoin-services-flags" title="${escapeHtml(title)}">${flags}</span>`;
+    }
+    function peerNodeTitle(peer) {
+      const id = formatPeerNumber(peer && peer.node_id);
+      const badge = ((peer && peer.connection_badge) || '').trim();
+      const ua = ((peer && peer.version) || '').trim();
+
+      if (badge === 'this-node')
+        return `Local P2Pool/Core connector session ${id}. This is this server talking to its local wallet process. Node IDs are assigned per live socket and can change after reconnect.`;
+
+      if (badge === 'handshake-pending')
+        return `Temporary session ${id}. The peer has connected but has not finished the version handshake, so it may disappear quickly if it is rejected or times out.`;
+
+      if (ua.indexOf('DefcoinP2Pool') > -1)
+        return `P2Pool parent-chain connector session ${id}. This identifies a connection, not a miner, wallet owner, or stable host identity.`;
+
+      return `Defcoin Core peer session ${id}. This ID is useful for matching explorer rows to node logs/RPC output, but it is not persistent across reconnects.`;
+    }
+    function formatPeerNodeId(peer) {
+      return tooltipText(formatPeerNumber(peer && peer.node_id), peerNodeTitle(peer || {}), 'defcoin-peer-node-id');
+    }
+    function peerKnownNameTitle(peer) {
+      const alias = ((peer && peer.fqdn_alias) || '').trim();
+      const fqdn = ((peer && peer.fqdn) || '').trim();
+      const source = ((peer && peer.fqdn_source) || '').trim();
+      const badge = ((peer && peer.connection_badge) || '').trim();
+
+      if (alias === '')
+        return 'No known hostname, configured seed name, or seed-provided alias is currently associated with this peer. That does not make the peer invalid; it only means this server has no trusted label for it.';
+
+      if (badge === 'this-node' || source === 'local' || source === 'public-host')
+        return `Known local name for this server: ${alias}. This is a configured label, not a reverse-DNS lookup.`;
+
+      if (source === 'configured-hostname')
+        return `Configured seed or manually entered hostname used to attempt this connection: ${alias}. It may appear before the peer finishes handshaking.`;
+
+      if (source === 'known-seed-alias')
+        return `Known peer name from a seed or alias table: ${alias}. This records how the server recognizes or discovered the endpoint.`;
+
+      if (source === 'reverse-dns-with-seed-alias')
+        return `Known seed/alias name: ${alias}. Reverse DNS is separate and currently resolves as ${fqdn || 'unavailable'}.`;
+
+      return `Known name associated with this peer: ${alias}. Treat it as a routing/discovery label, not cryptographic identity.`;
+    }
+    function peerAddressTitle(peer) {
+      const raw = ((peer && peer.address) || '').trim();
+      const visible = peerAddressText(peer || {});
+      const port = ((peer && peer.port) || '').toString().trim();
+      const alias = ((peer && peer.fqdn_alias) || '').trim();
+      const badge = ((peer && peer.connection_badge) || '').trim();
+
+      if (badge === 'handshake-pending' && raw !== '' && !netIsIpAddress(raw))
+        return `Handshake is pending for hostname ${raw}. The IP is hidden until the connection resolves far enough to display safely.`;
+
+      if (visible === '')
+        return 'Peer IP address is not available yet. This usually means the peer is still pending, disconnected, or represented only by a seed hostname.';
+
+      const type = isIpv4Address(visible) ? 'IPv4 address' : (isIpv6Address(visible) ? 'IPv6 address' : 'Peer host');
+      const suffix = port !== '' ? ` on port ${port}` : '';
+      const aliasText = alias !== '' ? ` Known name: ${alias}.` : '';
+
+      return `${type}: ${visible}${suffix}. The IP and port are the network route for this live peer; multiple Defcoin-related services can exist on one host using different ports.${aliasText}`;
+    }
+    function peerPortTitle(peer) {
+      const port = ((peer && peer.port) || '').toString().trim();
+      const direction = peerDirectionInfo(peer || {}).label;
+
+      if (port === '')
+        return 'Remote TCP port is not available yet. Pending or rejected peers may never report a useful port.';
+
+      if (direction === 'In')
+        return `Remote TCP source port ${port}. For inbound peers this is often an ephemeral client port, not the peer's public listening port.`;
+
+      if (port === '1337')
+        return 'Remote TCP port 1337, the standard Defcoin peer port used by classic and modern full-node peers.';
+
+      return `Remote TCP port ${port}. Direction: ${direction}. Non-standard ports can be valid when a node is behind NAT, manually configured, or using a pool/service connector.`;
+    }
+    function peerPingTitle(value) {
+      const text = formatPeerPing(value);
+
+      if (text === '-')
+        return 'Ping is not available for this peer yet. New, inbound, or short-lived connections may not have a ping sample.';
+
+      return `Approximate round-trip latency: ${text}. Lower latency helps block and transaction relay feel responsive, but it does not indicate hash rate, trust, or chain validity.`;
+    }
+    function peerBytesTitle(label, value) {
+      const formatted = formatPeerBytes(value);
+      const parsed = parseInt(value || 0, 10);
+
+      if (formatted === '-')
+        return `${label} byte count is not available. Pending handshakes and short-lived rejected peers often have very low or missing traffic counters.`;
+
+      return `${label}: ${formatted} (${isNaN(parsed) ? 0 : parsed} bytes) during this live connection only. The counter resets when the peer disconnects and reconnects.`;
+    }
+    function peerUserAgentTitle(peer) {
+      const ua = ((peer && peer.version) || '').trim();
+      const magic = ((peer && peer.magic) || '').trim();
+
+      if (ua === '' || ua === 'Handshake pending')
+        return 'The peer has not completed the version handshake, so no User Agent has been reported yet. Bad legacy peers can be dropped before they relay addresses.';
+
+      if (ua.indexOf('DefcoinP2Pool') > -1)
+        return `${ua}. P2Pool parent-chain connector. It helps the pool talk to the Defcoin chain, but it is not the same kind of peer as a desktop full-node wallet.`;
+
+      return `${ua}. Software identity reported during the version handshake${magic ? ` using ${magic} magic` : ''}. Defcoin uses the /Defcoin prefix to reduce Litecoin-family address pollution while legacy magic remains temporarily accepted.`;
+    }
+    function peerMagicTitle(value) {
+      const magic = ((value || '') + '').trim().toLowerCase();
+
+      if (magic === '' || magic === 'pending')
+        return 'P2P message-start magic is not known until the peer sends a valid network header. This is normal for handshake-pending rows.';
+
+      if (magic === 'defc014e')
+        return 'defc014e is the modern Defcoin-specific P2P message-start magic. It cleanly separates Defcoin traffic from Litecoin-family traffic.';
+
+      if (magic === 'fbc0b6db')
+        return 'fbc0b6db is the legacy Litecoin-family message-start magic. Defcoin still accepts it for old wallets/pools, but filters User Agents to avoid importing non-Defcoin peers.';
+
+      return `${magic} is the actual P2P message-start magic observed for this peer. Unexpected values are useful for diagnosing misconfigured or non-Defcoin software.`;
+    }
+    function peerProtocolTitle(value, peer) {
+      const protocol = ((value || '') + '').trim();
+      const ua = ((peer && peer.version) || '').trim();
+
+      if (protocol === '' || protocol === '-')
+        return 'Protocol version is unavailable until the version handshake completes. It is negotiated before normal peer traffic is trusted.';
+
+      if (protocol === '70002')
+        return 'Protocol 70002 is used by the lightweight P2Pool parent-chain connector. It is a P2P wire-protocol level, not the server software release number.';
+
+      if (protocol === '70015')
+        return 'Protocol 70015 is used by older Defcoin Core 1.0.x wallet peers. Seeing it helps identify classic wallet compatibility traffic.';
+
+      if (protocol === '70017')
+        return 'Protocol 70017 is used by modern Defcoin Core Nu wallet peers. It indicates a newer P2P feature set than the classic 70015 peers.';
+
+      return `P2P protocol version ${protocol}${ua ? ` reported by ${ua}` : ''}. This number describes wire-protocol compatibility, not wallet balance, miner status, or block height.`;
+    }
+    function textFromPeerColumnValue(value) {
+      const text = ((value == null ? '' : value) + '').trim();
+      return text === '' ? '-' : text;
+    }
+    function measurePeerTextWidth(text, className) {
+      let measure = $('#defcoin-peer-width-measure');
+      const value = textFromPeerColumnValue(text);
+
+      if (!measure.length) {
+        measure = $('<span id="defcoin-peer-width-measure"></span>');
+        $('body').append(measure);
+      }
+
+      measure
+        .attr('class', className || '')
+        .css({
+          position: 'absolute',
+          visibility: 'hidden',
+          whiteSpace: 'nowrap',
+          top: '-9999px',
+          left: '-9999px',
+          fontFamily: $('#connections-table').css('font-family'),
+          fontSize: $('#connections-table').css('font-size'),
+          fontWeight: $('#connections-table').css('font-weight')
+        })
+        .text(value);
+
+      return Math.ceil(measure[0].getBoundingClientRect().width);
+    }
+    function splitPeerHeaderLines(header) {
+      return (Array.isArray(header) ? header : [header || ''])
+        .join('\n')
+        .split(/\n+/)
+        .map(function(line) { return line.trim(); })
+        .filter(function(line) { return line !== ''; });
+    }
+    function measurePeerHeaderLineWidth(line, bodyWidth) {
+      const fullWidth = measurePeerTextWidth(line, 'defcoin-peer-measure-header');
+      const words = line.split(/\s+/).filter(function(word) { return word !== ''; });
+
+      if (words.length < 2 || bodyWidth >= fullWidth)
+        return fullWidth;
+
+      return words.reduce(function(maxWidth, word) {
+        return Math.max(maxWidth, measurePeerTextWidth(word, 'defcoin-peer-measure-header'));
+      }, 0);
+    }
+    function measurePeerHeaderWidth(spec, bodyWidth) {
+      const lines = splitPeerHeaderLines(spec.header);
+
+      if (!lines.length)
+        return 0;
+
+      return lines.reduce(function(maxWidth, line) {
+        return Math.max(maxWidth, measurePeerHeaderLineWidth(line, bodyWidth));
+      }, 0);
+    }
+    function clampPeerColumnWidth(width, spec) {
+      const min = spec.min || 48;
+      const max = spec.max || 420;
+      return Math.max(min, Math.min(max, width));
+    }
+    function peerColumnHeaderTitle(spec) {
+      return Array.isArray(spec.title) ? spec.title.join('\n') : (spec.title || '');
+    }
+    function ensurePeerColgroup(table, count) {
+      let colgroup = table.children('colgroup.defcoin-peer-autosize-cols');
+
+      if (!colgroup.length) {
+        table.children('colgroup.defcoin-peer-autosize-cols').remove();
+        colgroup = $('<colgroup class="defcoin-peer-autosize-cols"></colgroup>');
+        table.prepend(colgroup);
+      }
+
+      while (colgroup.children('col').length < count)
+        colgroup.append('<col>');
+
+      while (colgroup.children('col').length > count)
+        colgroup.children('col').last().remove();
+
+      return colgroup.children('col');
+    }
+    function applyPeerTableColumnWidths(tableSelector, specs, rows) {
+      const wrapper = $(`${tableSelector}_wrapper`);
+      const headTable = wrapper.find('.dataTables_scrollHead table');
+      const bodyTable = wrapper.find('.dataTables_scrollBody table');
+      const tables = headTable.add(bodyTable);
+
+      if (!wrapper.length || !headTable.length || !bodyTable.length || !Array.isArray(specs) || !specs.length)
+        return;
+
+      let widths = specs.map(function(spec) {
+        let bodyMeasured = 0;
+
+        (rows || []).forEach(function(row) {
+          const raw = spec.text ? spec.text(row || {}) : '';
+          const values = Array.isArray(raw) ? raw : [raw];
+
+          values.forEach(function(value) {
+            bodyMeasured = Math.max(bodyMeasured, measurePeerTextWidth(value, spec.measureClass || ''));
+          });
+        });
+
+        const headerMeasured = spec.wrapHeader === false
+          ? Math.max.apply(null, splitPeerHeaderLines(spec.header).map(function(line) {
+              return measurePeerTextWidth(line, 'defcoin-peer-measure-header');
+            }).concat([0]))
+          : measurePeerHeaderWidth(spec, bodyMeasured);
+        const measured = Math.max(bodyMeasured, headerMeasured);
+
+        const noWrapGutter = spec.noWrapBody === true && spec.noWrapGutter !== false ? measurePeerTextWidth('– ', spec.measureClass || '') : 0;
+
+        return clampPeerColumnWidth(measured + (spec.padding || 28) + noWrapGutter, spec);
+      });
+
+      const scrollBody = wrapper.find('.dataTables_scrollBody');
+      const viewportWidth = Math.floor(scrollBody.innerWidth() || wrapper.innerWidth() || 0);
+      const fitTargetWidth = viewportWidth > 16 ? viewportWidth - 8 : viewportWidth;
+      let totalWidth = widths.reduce(function(sum, width) { return sum + width; }, 0);
+
+      if (fitTargetWidth > totalWidth) {
+        const stretchColumns = specs
+          .map(function(spec, index) { return spec.stretch ? index : -1; })
+          .filter(function(index) { return index >= 0; });
+
+        if (stretchColumns.length > 0) {
+          let extra = fitTargetWidth - totalWidth;
+          stretchColumns.forEach(function(index, position) {
+            const add = position === stretchColumns.length - 1 ? extra : Math.floor(extra / (stretchColumns.length - position));
+            widths[index] += add;
+            extra -= add;
+          });
+          totalWidth = fitTargetWidth;
+        }
+      } else if (fitTargetWidth > 0 && totalWidth > fitTargetWidth) {
+        let overflow = totalWidth - fitTargetWidth;
+        const shrinkColumns = specs
+          .map(function(spec, index) {
+            return spec.fitMin ? {
+              index: index,
+              priority: spec.shrinkPriority || 100,
+              min: spec.fitMin
+            } : null;
+          })
+          .filter(function(item) { return item != null; })
+          .sort(function(a, b) { return a.priority - b.priority; });
+
+        shrinkColumns.forEach(function(item) {
+          if (overflow <= 0)
+            return;
+
+          const reducible = Math.max(0, widths[item.index] - item.min);
+          const reduction = Math.min(reducible, overflow);
+
+          widths[item.index] -= reduction;
+          overflow -= reduction;
+        });
+
+        totalWidth = widths.reduce(function(sum, width) { return sum + width; }, 0);
+      }
+
+      tables.each(function() {
+        const table = $(this);
+        const cols = ensurePeerColgroup(table, widths.length);
+
+        table[0].style.setProperty('width', `${totalWidth}px`, 'important');
+        table[0].style.setProperty('min-width', `${totalWidth}px`, 'important');
+
+        widths.forEach(function(width, index) {
+          const col = cols.eq(index)[0];
+
+          if (!col)
+            return;
+
+          col.style.setProperty('width', `${width}px`, 'important');
+          col.style.setProperty('min-width', `${width}px`, 'important');
+          col.style.setProperty('max-width', `${width}px`, 'important');
+        });
+      });
+
+      wrapper.find('.dataTables_scrollHeadInner').each(function() {
+        this.style.setProperty('width', `${totalWidth}px`, 'important');
+      });
+
+      widths.forEach(function(width, index) {
+        const headerCell = wrapper.find('.dataTables_scrollHead thead tr th').eq(index)[0];
+
+        if (headerCell) {
+          const title = peerColumnHeaderTitle(specs[index]);
+
+          headerCell.style.setProperty('width', `${width}px`, 'important');
+          headerCell.style.setProperty('min-width', `${width}px`, 'important');
+          headerCell.style.setProperty('max-width', `${width}px`, 'important');
+          headerCell.style.setProperty('box-sizing', 'border-box', 'important');
+          headerCell.style.setProperty('white-space', specs[index].wrapHeader === false ? 'nowrap' : 'normal', 'important');
+          headerCell.style.setProperty('overflow-wrap', 'normal', 'important');
+          headerCell.style.setProperty('word-break', 'normal', 'important');
+          headerCell.style.setProperty('line-height', '1.15', 'important');
+
+          if (specs[index].compactPadding === true) {
+            const padding = specs[index].compactPaddingPx != null ? `${specs[index].compactPaddingPx}px` : '2px';
+
+            headerCell.style.setProperty('padding-left', padding, 'important');
+            headerCell.style.setProperty('padding-right', padding, 'important');
+          }
+
+          if (title)
+            headerCell.setAttribute('title', title);
+        }
+
+        wrapper.find('.dataTables_scrollBody tbody tr').each(function() {
+          const cell = $(this).children('td').eq(index);
+          if (!cell.length)
+            return;
+
+          cell[0].style.setProperty('width', `${width}px`, 'important');
+          cell[0].style.setProperty('min-width', `${width}px`, 'important');
+          cell[0].style.setProperty('max-width', `${width}px`, 'important');
+          cell[0].style.setProperty('box-sizing', 'border-box', 'important');
+
+          if (specs[index].compactPadding === true) {
+            const padding = specs[index].compactPaddingPx != null ? `${specs[index].compactPaddingPx}px` : '2px';
+
+            cell[0].style.setProperty('padding-left', padding, 'important');
+            cell[0].style.setProperty('padding-right', padding, 'important');
+          }
+
+          if (specs[index].wrapBody === true) {
+            cell[0].style.setProperty('white-space', 'normal', 'important');
+            cell[0].style.setProperty('overflow-wrap', 'anywhere', 'important');
+            cell[0].style.setProperty('word-break', 'normal', 'important');
+          } else if (specs[index].noWrapBody === true) {
+            cell[0].style.setProperty('white-space', 'nowrap', 'important');
+            cell[0].style.setProperty('overflow-wrap', 'normal', 'important');
+            cell[0].style.setProperty('word-break', 'normal', 'important');
+          }
+        });
+      });
+    }
+    function schedulePeerTableAutosize(tableSelector, specs, rows) {
+      setTimeout(function() {
+        applyPeerTableColumnWidths(tableSelector, specs, rows);
+      }, 0);
+      setTimeout(function() {
+        applyPeerTableColumnWidths(tableSelector, specs, rows);
+      }, 80);
+    }
+    function formatPeerAddress(peer) {
+      const address = ((peer['address'] || '') + '').trim();
+      const badge = ((peer['connection_badge'] || '') + '').trim();
+
+      if (badge === 'handshake-pending' && address !== '' && netIsIpAddress(address) === false)
+        return mutedDash(peerAddressTitle(peer));
+
+      if (isIpv4Address(address)) {
+        const formatted = address.split('.').map(function(part) {
+          const padded = ('   ' + (parseInt(part, 10) || 0)).slice(-3);
+          return `<span class="defcoin-ipv4-octet">${nonBreakingSpaces(padded)}</span>`;
+        }).join('<span class="defcoin-ipv4-dot">.</span>');
+
+        return `<span class="defcoin-peer-address defcoin-peer-address-ipv4" title="${escapeHtml(peerAddressTitle(peer))}">${formatted}</span>`;
+      }
+
+      if (isIpv6Address(address))
+        return `<span class="defcoin-peer-address defcoin-peer-address-ipv6" title="${escapeHtml(peerAddressTitle(peer))}">${escapeHtml(address)}</span>`;
+
+      return `<span class="defcoin-peer-address defcoin-peer-address-host" title="${escapeHtml(peerAddressTitle(peer))}">${escapeHtml(address)}</span>`;
+    }
+    function netIsIpAddress(address) {
+      return isIpv4Address(address) || isIpv6Address(address);
+    }
+    function peerAddressText(peer) {
+      const address = ((peer && peer.address) || '') + '';
+      const badge = ((peer && peer.connection_badge) || '') + '';
+
+      if (badge === 'handshake-pending' && address !== '' && !netIsIpAddress(address))
+        return '';
+
+      return address;
+    }
+    function formatPeerBadge(peer) {
+      const badge = ((peer['connection_badge'] || '') + '').trim();
+
+      if (badge === '')
+        return '';
+
+      return `<span class="defcoin-peer-badge">${escapeHtml(badge)}</span>`;
+    }
+    function getPreferredPeerHost(peer) {
+      const fqdn = ((peer['fqdn'] || '') + '').trim();
+      const alias = ((peer['fqdn_alias'] || '') + '').trim();
+      const fqdnSource = ((peer['fqdn_source'] || '') + '').trim();
+
+      if (alias !== '' && (fqdnSource === 'known-seed-alias' || fqdnSource === 'reverse-dns-with-seed-alias' || fqdnSource === 'configured-hostname'))
+        return alias;
+
+      if (fqdn !== '' && (fqdnSource === 'known-seed-alias' || fqdnSource === 'local' || fqdnSource === 'public-host'))
+        return fqdn;
+
+      return peer['address'] || '';
+    }
+    function formatPreferredPeerEndpoint(peer) {
+      const host = getPreferredPeerHost(peer);
+      const port = peer['port'];
+
+      if (host == null || host == '')
+        return '';
+
+      if (isIpv6Address(host))
+        return `[${host}]${(port == null || port == '' ? '' : ':' + port)}`;
+
+      return host + ((port == null || port == '') ? '' : ':' + port);
+    }
+    function formatPeerFqdn(peer) {
+      const fqdn = ((peer['fqdn'] || '') + '').trim();
+      const alias = ((peer['fqdn_alias'] || '') + '').trim();
+      const source = ((peer['fqdn_source'] || '') + '').trim();
+
+      if (fqdn !== '') {
+        const reversedFqdn = reverseDomainLabels(fqdn);
+        const sourceText = source === 'known-seed-alias'
+          ? 'Known seed alias'
+          : (source === 'reverse-dns-with-seed-alias'
+            ? 'Reverse DNS; known seed alias: ' + alias
+            : (source === 'public-host' || source === 'local' ? 'This node public hostname' : 'Reverse DNS'));
+
+        return clampPeerText(reversedFqdn, `${sourceText}: ${fqdn}`);
+      }
+
+      return mutedDash('Reverse DNS / PTR hostname is not available for this peer.');
+    }
+    function reverseDomainLabels(value) {
+      const clean = ((value || '') + '').trim().replace(/\.$/, '');
+
+      if (clean === '')
+        return '';
+
+      return clean.split('.').filter(function(part) {
+        return part !== '';
+      }).reverse().join('.');
+    }
+    function formatPeerAlias(peer) {
+      const alias = ((peer['fqdn_alias'] || '') + '').trim();
+      const badge = ((peer['connection_badge'] || '') + '').trim();
+
+      if (alias === '')
+        return mutedDash(peerKnownNameTitle(peer));
+
+      return clampPeerText(alias, peerKnownNameTitle(peer));
+    }
+    function formatSeedAggregatorResolvedTarget(target) {
+      const knownName = ((target && target.known_name) || '').trim();
+      const address = ((target && target.address) || '').trim();
+
+      if (knownName !== '' && address !== '')
+        return `${escapeHtml(knownName)} <span class="text-muted">(${escapeHtml(address)})</span>`;
+
+      if (knownName !== '')
+        return escapeHtml(knownName);
+
+      return escapeHtml(address);
+    }
+    function renderSeedAggregatorSummary(seedAggregators) {
+      const container = $('#seed-aggregator-summary');
+      const rows = Array.isArray(seedAggregators) ? seedAggregators : [];
+
+      if (!container.length)
+        return;
+
+      if (!rows.length) {
+        container.addClass('d-none').empty();
+        return;
+      }
+
+      const body = rows.map(function(row) {
+        const resolved = Array.isArray(row.resolved) ? row.resolved : [];
+        const targets = resolved
+          .map(formatSeedAggregatorResolvedTarget)
+          .filter(function(value) { return value !== ''; })
+          .join(', ');
+
+        return `<tr><td class="text-end">${escapeHtml(row.domain || '')}</td><td>${targets || '<span class="text-muted">&mdash;</span>'}</td></tr>`;
+      }).join('');
+
+      container
+        .removeClass('d-none')
+        .html(`<div class="card-body border-top defcoin-seed-aggregator-summary"><h5 class="mb-2">Seed Aggregators</h5><p class="text-muted mb-2">A DNS seed aggregator returns multiple peer IPs to help wallets discover more Defcoin nodes. This summary shows configured seed hostnames that currently resolve to more than one peer address.</p><table class="table table-sm table-bordered mb-0"><thead><tr><th class="text-end">Seed Aggregator Server Name</th><th>Currently Resolves To</th></tr></thead><tbody>${body}</tbody></table></div>`);
+    }
+    function peerDirectionInfo(peer) {
+      const note = ((peer['connection_note'] || '') + '').toLowerCase();
+      const badge = ((peer['connection_badge'] || '') + '').toLowerCase();
+      const source = ((peer['country'] || '') + '').toLowerCase();
+
+      if (badge === 'this-node' || source === 'this node' || note.indexOf('this node') > -1) {
+        return {
+          label: 'Local',
+          sort: '2',
+          title: 'This row is the server/explorer node itself, not a remote wallet peer.'
+        };
+      }
+
+      if (note.indexOf('inbound') > -1 || source.indexOf(' in') > -1 || source.indexOf('pending in') > -1) {
+        return {
+          label: 'In',
+          sort: '1',
+          title: 'Inbound connection to this server.'
+        };
+      }
+
+      if (note.indexOf('outbound') > -1 || source.indexOf(' out') > -1 || source.indexOf('pending out') > -1) {
+        return {
+          label: 'Out',
+          sort: '0',
+          title: 'Outbound connection from this server.'
+        };
+      }
+
+      return {
+        label: '-',
+        sort: '3',
+        title: 'Connection direction is unavailable.'
+      };
+    }
+    function formatPeerDirection(peer) {
+      const direction = peerDirectionInfo(peer);
+      return `<span title="${escapeHtml(direction.title)}">${escapeHtml(direction.label)}</span>`;
+    }
+    function directionSortKey(peer) {
+      return peerDirectionInfo(peer).sort;
+    }
+    function formatLegacyConsoleAddCommand(peer) {
+      const endpoint = formatPreferredPeerEndpoint(peer);
+
+      if (endpoint === '')
+        return '';
+
+      return 'addnode ' + endpoint + ' add';
+    }
+    function formatConsoleAddParams(peer) {
+      const host = ((peer && peer.address) || '').trim();
+      const port = peer && peer.port;
+
+      if (host === '')
+        return '';
+
+      const endpoint = host + ((port == null || port === '') ? '' : ':' + port);
+
+      return '[' + JSON.stringify(endpoint) + ', "add"]';
+    }
+    function copyTextValue(text, cb) {
+      const finishCopy = function(success) {
+        if (cb)
+          cb(success);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          finishCopy(true);
+        }).catch(function() {
+          const tmp = $('<textarea>');
+
+          $('body').append(tmp);
+          tmp.val(text).trigger('select');
+          document.execCommand('copy');
+          tmp.remove();
+          finishCopy(true);
+        });
+      } else {
+        const tmp = $('<textarea>');
+
+        $('body').append(tmp);
+        tmp.val(text).trigger('select');
+        document.execCommand('copy');
+        tmp.remove();
+        finishCopy(true);
+      }
+    }
+    function showCopyFeedback(btn, label) {
+      btn.tooltip({title: label, placement: 'top', trigger: 'manual'}).tooltip('show');
+
+      setTimeout(function() {
+        btn.tooltip('dispose');
+      }, 1500);
+    }
+    function installCopyAllButton(tableSelector, buttonId, formatter) {
+      const wrapper = $(`${tableSelector}_wrapper`);
+      const info = wrapper.find('.dataTables_info');
+
+      if (!info.length)
+        return;
+
+      info.parent().addClass('d-flex align-items-center gap-2 flex-wrap');
+
+      let button = wrapper.find(`#${buttonId}`);
+
+      if (!button.length) {
+        button = $(`<button type="button" class="btn btn-sm btn-outline-secondary" id="${buttonId}"><i class="fa-regular fa-copy"></i> Copy All</button>`);
+        info.before(button);
+
+        button.on('click', function() {
+          const api = $(tableSelector).DataTable();
+          const visibleRows = api.rows({page: 'current'}).data().toArray();
+          const lines = visibleRows.map((row) => formatter(row)).filter((line) => line != null && line !== '');
+
+          if (!lines.length)
+            return;
+
+          copyTextValue(lines.join('\r\n') + '\r\n', function() {
+            showCopyFeedback(button, 'Copied!');
+          });
+        });
+      }
+    }
+    function showConnectionSummary(overview) {
+      const summary = $('#network-connection-summary');
+      const total = overview.connection_count || 0;
+      const listed = overview.listed_connection_count || 0;
+      const walletOnly = overview.wallet_only_connection_count || 0;
+      const localServices = overview.local_service_count || 0;
+      const unresolved = overview.unresolved_connection_count || 0;
+      const extras = [];
+
+      if (walletOnly > 0)
+        extras.push(`${walletOnly} wallet-only connection${walletOnly == 1 ? '' : 's'}`);
+
+      if (localServices > 0)
+        extras.push(`${localServices} local service${localServices == 1 ? '' : 's'}`);
+
+      if (unresolved > 0)
+        extras.push(`${unresolved} pending or unresolved connection${unresolved == 1 ? '' : 's'}`);
+
+      let summaryText = `${total} live connection${total == 1 ? '' : 's'} detected: ${listed} connected peer${listed == 1 ? '' : 's'}`;
+
+      if (extras.length > 0)
+        summaryText += ` plus ${extras.join(', ')}.`;
+      else
+        summaryText += '.';
+
+      summary.removeClass('d-none').text(summaryText);
+    }
     $(document).ready(function() {
+      let latestConnectionColumnSizing = [];
+      let latestConnectionRows = [];
+
       $.ajax({
         method: 'GET',
-        url: '/ext/getnetworkpeers/internal',
+        url: '/ext/getnetworkoverview/internal',
         dataType: 'json'
       }).done(function(peers) {
-        const connection_table_enabled = #{settings.network_page.connections_table.enabled};
+        const connectionRows = buildConnectionRows(peers);
+        const addnodeRows = resolveCommandPeers(peers.addnode_peers, peers);
+        const onetryRows = resolveCommandPeers(peers.onetry_peers, peers);
+
+          latestConnectionRows = connectionRows;
+
+          showConnectionSummary(peers);
+          renderSeedAggregatorSummary(peers.seed_aggregators);
+
+          const connection_table_enabled = #{settings.network_page.connections_table.enabled};
 
         if (connection_table_enabled) {
-          const setting_con_txPerPage = parseInt("#{settings.network_page.connections_table.items_per_page}");
-          const setting_con_port_filter = "#{settings.network_page.connections_table.port_filter}";
-          const column_width = (setting_con_port_filter == '-1' ? '25%' : '20%');
+        const setting_con_txPerPage = parseInt("#{settings.network_page.connections_table.items_per_page}");
+        const setting_con_port_filter = "#{settings.network_page.connections_table.port_filter}";
           let columns = [];
+          let columnSizing = [];
+          function addConnectionColumn(column, sizing) {
+            columns.push(column);
+            columnSizing.push(sizing);
+          }
+          latestConnectionColumnSizing = columnSizing;
 
-          columns.push({ data: 'address', width: column_width });
+          addConnectionColumn({
+            data: 'node_id',
+            className: 'defcoin-peer-node-cell text-end',
+            render: function(data, type, row) {
+              if (type === 'sort' || type === 'type')
+                return sortNumberValue(data);
+              return type === 'display' ? formatPeerNodeId(row || { node_id: data }) : (data || '');
+            }
+          }, {
+            header: 'Node Id.',
+            title: [
+              'Local connection ID assigned by this server.',
+              'It is useful for matching this table to logs and RPC peer output.',
+              'It is not a permanent peer identity and can change after reconnects or rejected handshakes.'
+            ],
+            text: function(row) { return formatPeerNumber(row.node_id); },
+            min: 70,
+            max: 86,
+            fitMin: 66,
+            shrinkPriority: 90
+          });
+          addConnectionColumn({
+            data: null,
+            className: 'defcoin-peer-dir-cell text-end',
+            render: function(data, type, row) {
+              if (type === 'sort' || type === 'type')
+                return directionSortKey(row || {});
+              if (type === 'display')
+                return formatPeerDirection(row || {});
+              return peerDirectionInfo(row || {}).label;
+            }
+          }, {
+            header: 'Dir.',
+            title: [
+              'Connection direction.',
+              'Out means this server initiated the peer connection.',
+              'In means the remote peer connected to this server.',
+              'Local means this row represents this server or a local connector.'
+            ],
+            text: function(row) { return peerDirectionInfo(row || {}).label; },
+            min: 48,
+            max: 62,
+            fitMin: 44,
+            shrinkPriority: 90
+          });
+          addConnectionColumn({
+            data: 'fqdn_alias',
+            className: 'defcoin-peer-alias-cell text-end',
+            render: function(data, type, row) {
+              if (type === 'sort' || type === 'type')
+                return ((data || '') + '').toLowerCase();
+              if (type === 'display')
+                return formatPeerAlias(row || {});
+              return data || '';
+            }
+          }, {
+            header: ['Known', 'Name'],
+            title: [
+              'Known hostname, configured seed name, or manually supplied alias associated with the endpoint.',
+              'This is a discovery label and may differ from reverse DNS.',
+              'It is useful for recognizing seed-provided peers, but it is not cryptographic proof of ownership.'
+            ],
+            text: function(row) {
+              return row.fqdn_alias || '';
+            },
+            min: 104,
+            fitMin: 104,
+            shrinkPriority: 25,
+            padding: 14,
+            noWrapBody: true
+          });
+          addConnectionColumn({
+            data: 'address',
+            className: 'defcoin-peer-address-cell text-end',
+            createdCell: function(td, cellData, rowData) {
+              const address = ((rowData && rowData.address) || cellData || '') + '';
+
+              if (isIpv6Address(address))
+                $(td).removeClass('text-end').addClass('text-start defcoin-peer-address-cell-ipv6');
+              else
+                $(td).removeClass('text-start defcoin-peer-address-cell-ipv6').addClass('text-end');
+            },
+            render: function(data, type, row) {
+              if (type === 'sort' || type === 'type')
+                return addressSortKey(data, row ? row.port : 0);
+              if (type === 'display')
+                return formatPeerAddress(row || {});
+              return data || '';
+            }
+          }, {
+            header: 'IP Address',
+            title: [
+              'Peer network address used for this live connection.',
+              'IPv4 is dot-aligned for numeric scanning; IPv6 is left-aligned for readability.',
+              'The same host can run multiple Defcoin services on different ports.'
+            ],
+            text: function(row) { return peerAddressText(row); },
+            measureClass: 'defcoin-peer-address-cell',
+            min: 124,
+            max: 150,
+            fitMin: 118,
+            shrinkPriority: 60
+          });
 
           if (setting_con_port_filter != '' && setting_con_port_filter != '-1')
-            columns.push({ data: 'port', width: column_width });
+            addConnectionColumn({
+              data: 'port',
+              className: 'defcoin-peer-port-cell text-end',
+              render: function(data, type, row) {
+                if (type === 'sort' || type === 'type')
+                  return parseInt(data || 0, 10) || 0;
+                if (type === 'display')
+                  return tooltipText(data || '', peerPortTitle(row || { port: data }));
+                return data || '';
+              }
+            }, {
+              header: 'Port',
+              title: [
+                'Remote TCP port observed for this connection.',
+                'Port 1337 is the standard Defcoin peer port.',
+                'Inbound rows often show an ephemeral source port, so a high port is not automatically suspicious.'
+              ],
+              text: function(row) { return row.port || ''; },
+              min: 58,
+              max: 70,
+              fitMin: 54,
+              shrinkPriority: 75
+            });
 
-          columns.push({ data: 'protocol', width: column_width });
-          columns.push({ data: 'version', width: column_width });
-          columns.push({ data: 'country', width: column_width });
+          addConnectionColumn({
+            data: 'ping_ms',
+            className: 'defcoin-peer-ping-cell text-end',
+            render: function(data, type) {
+              if (type === 'sort' || type === 'type')
+                return sortNumberValue(data);
+              return type === 'display' ? tooltipText(formatPeerPing(data), peerPingTitle(data)) : (data || '');
+            }
+          }, {
+            header: 'Ping',
+            title: [
+              'Approximate round-trip latency measured by the node.',
+              'Low ping helps relay responsiveness, but it does not prove trust, hash rate, or chain quality.',
+              'Blank ping usually means the peer is new, inbound, or did not stay connected long enough.'
+            ],
+            text: function(row) { return formatPeerPing(row.ping_ms); },
+            min: 58,
+            max: 70,
+            fitMin: 54,
+            shrinkPriority: 75
+          });
+          addConnectionColumn({
+            data: 'sent_bytes',
+            className: 'defcoin-peer-bytes-cell text-end',
+            render: function(data, type) {
+              if (type === 'sort' || type === 'type')
+                return sortNumberValue(data);
+              return type === 'display' ? tooltipText(formatPeerBytes(data), peerBytesTitle('Sent', data)) : (data || '');
+            }
+          }, {
+            header: 'Sent',
+            title: [
+              'Bytes sent from this server to the peer during the current socket connection.',
+              'This resets on reconnect and is best used as a short-term relay/handshake activity indicator.'
+            ],
+            text: function(row) { return formatPeerBytes(row.sent_bytes); },
+            min: 68,
+            max: 76,
+            fitMin: 64,
+            shrinkPriority: 75
+          });
+          addConnectionColumn({
+            data: 'received_bytes',
+            className: 'defcoin-peer-bytes-cell text-end',
+            render: function(data, type) {
+              if (type === 'sort' || type === 'type')
+                return sortNumberValue(data);
+              return type === 'display' ? tooltipText(formatPeerBytes(data), peerBytesTitle('Received', data)) : (data || '');
+            }
+          }, {
+            header: "Rec'd",
+            title: [
+              'Bytes received by this server from the peer during the current socket connection.',
+              'A low count is normal for pending/rejected peers; sustained peers should accumulate traffic over time.'
+            ],
+            text: function(row) { return formatPeerBytes(row.received_bytes); },
+            min: 68,
+            max: 76,
+            fitMin: 64,
+            shrinkPriority: 75
+          });
+          addConnectionColumn({
+            data: 'version',
+            className: 'defcoin-peer-version-cell text-start',
+            render: function(data, type, row) {
+              return type === 'display' ? clampPeerText(data || '', peerUserAgentTitle(row || { version: data })) : (data || '');
+            }
+          }, {
+            header: 'User Agent',
+            title: [
+              'Software identity string reported by the peer during the version handshake.',
+              'Defcoin uses this field to distinguish real Defcoin peers from Litecoin-family pollution when legacy magic is accepted.',
+              'It is self-reported, so it is a useful compatibility signal but not proof of honest behavior.'
+            ],
+            text: function(row) { return row.version || ''; },
+            measureClass: 'defcoin-peer-version-cell',
+            min: 96,
+            fitMin: 96,
+            shrinkPriority: 30,
+            padding: 18,
+            noWrapBody: true
+          });
+          addConnectionColumn({
+            data: 'magic',
+            className: 'defcoin-peer-magic-cell text-center',
+            render: function(data, type) {
+              const value = data || 'pending';
+              return type === 'display' ? tooltipText(value, peerMagicTitle(value)) : value;
+            }
+          }, {
+            header: 'Magic',
+            title: [
+              'Actual P2P message-start magic observed for this peer.',
+              'Modern Defcoin magic is defc014e.',
+              'Legacy fbc0b6db is still accepted for migration compatibility, with User-Agent filtering to reduce Litecoin pollution.'
+            ],
+            text: function(row) { return row.magic || 'pending'; },
+            min: 78,
+            max: 88,
+            fitMin: 74,
+            shrinkPriority: 85
+          });
+          addConnectionColumn({
+            data: 'protocol',
+            className: 'defcoin-peer-protocol-cell text-center',
+            render: function(data, type, row) {
+              if (type === 'sort' || type === 'type')
+                return parseInt(data || 0, 10) || 0;
+              return type === 'display' ? tooltipText(data || '-', peerProtocolTitle(data, row || {})) : (data || '');
+            }
+          }, {
+            header: ['Proto.', 'Ver.'],
+            title: [
+              'P2P wire-protocol version reported during the version handshake.',
+              'This is not the wallet application version.',
+              'It indicates which network message features the peer is likely to understand.'
+            ],
+            text: function(row) { return row.protocol || '-'; },
+            min: 54,
+            fitMin: 54,
+            padding: 0,
+            shrinkPriority: 85,
+            compactPadding: true
+          });
+          addConnectionColumn({
+            data: 'services',
+            className: 'defcoin-peer-services-cell text-center',
+            render: function(data, type, row) {
+              const raw = data || '-';
+              if (type === 'sort' || type === 'type')
+                return parseInt(raw || 0, 16) || 0;
+              const names = (row && row.services_names) || '';
+              return formatPeerServicesHtml(raw, names);
+            }
+          }, {
+            header: 'Services',
+            title: [
+              'Service flags advertised by the peer during the version handshake.',
+              'These flags tell wallets whether the peer claims it can serve blocks, Bloom-filtered SPV data, compact filters, witness-aware data, or related inherited services.',
+              'Bright codes are enabled; dim codes are not advertised. They are self-reported capabilities, not health guarantees.',
+              'N=NODE_NETWORK, G=NODE_GETUTXO, B=NODE_BLOOM, W=NODE_WITNESS, CF=NODE_COMPACT_FILTERS, NL=NODE_NETWORK_LIMITED, M=NODE_MWEB, LC=NODE_MWEB_LIGHT_CLIENT.'
+            ],
+            text: function(row) { return 'Services'; },
+            measureClass: 'defcoin-peer-services-cell',
+            min: 72,
+            max: 78,
+            fitMin: 72,
+            padding: 0,
+            shrinkPriority: 85,
+            noWrapBody: true,
+            noWrapGutter: false,
+            compactPadding: true,
+            compactPaddingPx: 0
+          });
+          addConnectionColumn({
+            data: 'fqdn',
+            className: 'breakWord defcoin-peer-dns-cell text-start',
+            render: function(data, type, row) {
+              if (type === 'sort' || type === 'type')
+                return reverseDomainLabels(data || '').toLowerCase();
+              if (type === 'display')
+                return formatPeerFqdn(row || {});
+              return data || '';
+            }
+          }, {
+            header: ['DNS', 'Sort Name'],
+            title: [
+              'Reverse-DNS/PTR hostname with domain labels reversed for sorting.',
+              'For example, host.example.com is displayed as com.example.host so related domains group together.',
+              'Reverse DNS is informational and controlled by the IP owner; it may differ from the Known Name used to discover the peer.'
+            ],
+            text: function(row) { return reverseDomainLabels(row.fqdn || ''); },
+            min: 138,
+            max: 152,
+            fitMin: 132,
+            shrinkPriority: 20,
+            padding: 14,
+            wrapBody: true
+          });
 
           $('#connections-table').dataTable({
-            autoWidth: true,
+            autoWidth: false,
             searching: false,
             ordering: true,
             order: [],
-            responsive: true,
+            responsive: false,
             lengthChange: true,
             processing: true,
             iDisplayLength: setting_con_txPerPage,
@@ -57,28 +1304,18 @@ block content
                 next: '>'
               }
             },
-            data: peers.connection_peers,
-            rowCallback: function (row, data, index) {
-              const flagBlock = (data['country_code'].length > 1 ? '<span class="margin-left-5 fi fi-'+data['country_code'].toLowerCase()+'"></span>' : '');
-              let colIndex = 1;
-
-              $("td:eq(0)", row).html(data['address']).addClass('breakWord');
-
-              if (setting_con_port_filter != '' && setting_con_port_filter != '-1') {
-                $("td:eq(1)", row).html(data['port'] || '');
-                colIndex = 2;
-              }
-
-              $(`td:eq(${colIndex})`, row).html(data['protocol']);
-              $(`td:eq(${colIndex + 1})`, row).html(data['version']);
-              $(`td:eq(${colIndex + 2})`, row).html(data['country'] + flagBlock);
+            data: connectionRows,
+            initComplete: function() {
+              schedulePeerTableAutosize('#connections-table', columnSizing, connectionRows);
             },
             fnDrawCallback: function(settings) {
               fixDataTableColumns();
+              schedulePeerTableAutosize('#connections-table', columnSizing, connectionRows);
               fixFooterHeightAndPosition();
             },
             columns: columns
           });
+          schedulePeerTableAutosize('#connections-table', columnSizing, connectionRows);
         }
 
         const addnode_table_enabled = #{settings.network_page.addnodes_table.enabled};
@@ -103,12 +1340,15 @@ block content
                 next: '>'
               }
             },
-            data: peers.addnode_peers,
+            data: addnodeRows,
             rowCallback: function(row, data, index) {
-              const nodes = 'addnode=' + (data['address'] != null && data['address'].indexOf(':') > -1 ? '[' + data['address'] + ']' : data['address']) + (data['port'] == null || data['port'] == '' || setting_add_port_filter == '' || setting_add_port_filter == '-1' ? '' : ':' + data['port']);
-              $("td:eq(0)", row).css('white-space', 'nowrap').html(`<button class="btn btn-sm btn-copy" type="button"><i class="fa-regular fa-copy"></i></button>&nbsp;<span>${nodes}</span>`);
+              const nodes = 'addnode=' + formatPreferredPeerEndpoint(data);
+              $("td:eq(0)", row).css('white-space', 'nowrap').html(`<button class="btn btn-sm btn-copy" type="button" data-copy-text="${nodes}"><i class="fa-regular fa-copy"></i></button>&nbsp;<span>${nodes}</span>`);
             },
             fnDrawCallback: function(settings) {
+              installCopyAllButton('#addnodes-table', 'copy-all-addnodes', function(rowData) {
+                return 'addnode=' + formatPreferredPeerEndpoint(rowData);
+              });
               fixDataTableColumns();
               fixFooterHeightAndPosition();
             },
@@ -143,12 +1383,19 @@ block content
                 next: '>'
               }
             },
-            data: peers.onetry_peers,
+            data: onetryRows,
             rowCallback: function(row, data, index) {
-              const nodes = 'addnode ' + (data['address'] != null && data['address'].indexOf(':') > -1 ? '[' + data['address'] + ']' : data['address']) + (data['port'] == null || data['port'] == '' || setting_one_port_filter == '' || setting_one_port_filter == '-1' ? '' : ':' + data['port']) + ' onetry';
-              $("td:eq(0)", row).css('white-space', 'nowrap').html(`<button class="btn btn-sm btn-copy" type="button"><i class="fa-regular fa-copy"></i></button>&nbsp;<span>${nodes}</span>`);
+              const nodes = formatConsoleAddParams(data);
+              const cell = $("td:eq(0)", row).css('white-space', 'nowrap').empty();
+              const button = $('<button class="btn btn-sm btn-copy" type="button"><i class="fa-regular fa-copy"></i></button>');
+
+              button.attr('data-copy-text', nodes);
+              cell.append(button).append('&nbsp;').append($('<span>').text(nodes));
             },
             fnDrawCallback: function(settings) {
+              installCopyAllButton('#onetry-table', 'copy-all-onetry', function(rowData) {
+                return formatLegacyConsoleAddCommand(rowData);
+              });
               fixDataTableColumns();
               fixFooterHeightAndPosition();
             },
@@ -164,6 +1411,7 @@ block content
 
       $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
         fixDataTableColumns();
+        schedulePeerTableAutosize('#connections-table', latestConnectionColumnSizing, latestConnectionRows);
         fixFooterHeightAndPosition();
       });
 
@@ -187,22 +1435,18 @@ block content
         const btn = $(this);
 
         if (btn.html().indexOf('fa-copy') > -1) {
-          const tmp = $('<input>');
+          copyTextValue((btn.attr('data-copy-text') || btn.parent().find('span').text()), function() {
+            btn.tooltip({title: 'Copied!', placement: 'top', trigger: 'manual'}).tooltip('show');
+            btn.html('<i class="fa-solid fa-check"></i>');
 
-          $('body').append(tmp);
-          tmp.val(btn.parent().find('span').html()).select();
-          document.execCommand('copy');
-          tmp.remove();
-
-          btn.tooltip({title: 'Copied!', placement: 'top', trigger: 'manual'}).tooltip('show');
-          btn.html('<i class="fa-solid fa-check"></i>');
-
-          setTimeout(function() {
-            btn.html('<i class="fa-regular fa-copy"></i>');
-            btn.tooltip('dispose');
-          }, 1500);
+            setTimeout(function() {
+              btn.html('<i class="fa-regular fa-copy"></i>');
+              btn.tooltip('dispose');
+            }, 1500);
+          });
         }
       });
+
     });
   - var theadClasses = [];
   if settings.shared_pages.table_header_bgcolor != null && settings.shared_pages.table_header_bgcolor != ''
@@ -210,10 +1454,7 @@ block content
   .col-md-12.cardSpacer
     .container
       if settings.network_page.page_header.show_img == true || settings.network_page.page_header.show_title == true || settings.network_page.page_header.show_last_updated == true || settings.network_page.page_header.show_description == true
-        #page-header-container(style='align-items:' + (settings.network_page.page_header.show_img == true && settings.network_page.page_header.show_title == true && settings.network_page.page_header.show_last_updated == true && settings.network_page.page_header.show_description == true ? 'flex-start' : 'center'))
-          if settings.network_page.page_header.show_img == true
-            #header-img-container
-              img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
+        #page-header-container
           #page-title-container
             if settings.network_page.page_header.show_title == true
               h3#page-title #{settings.localization.net_title.replace('{1}', settings.coin.name)}
@@ -233,7 +1474,24 @@ block content
                   .sub-page-header.text-muted=settings.localization.net_description.replace('{1}', settings.coin.name)
               else
                 .sub-page-header.text-muted=settings.localization.net_description.replace('{1}', settings.coin.name)
+          +defcoinPageBranding()
         .cardSpacer.clearfix
+      .alert.alert-info.py-2.mb-3(role='note')
+        | Defcoin peers usually listen on port
+        strong  1337
+        | , but a node can still be reached on a different public port when the full
+        strong  host:port
+        |  is known. The
+        strong  Port
+        |  column below shows the actual port this explorer saw for each connection, which helps when an operator is forwarding or remapping traffic.
+      .alert.alert-info.py-2.mb-3(role='note')
+        strong Dual magic header transition:
+        |  this pool supports both the legacy Defcoin/Litecoin-family P2P message header
+        strong  fbc0b6db
+        |  and the new Defcoin-specific header
+        strong  defc014e
+        | . These magic bytes are the first network boundary check in each peer message. Supporting both keeps older Defcoin wallets connected during migration, while the goal is to move users to modern wallets with Defcoin-only magic enabled so nodes reject unrelated Litecoin-family traffic sooner, reduce wasted handshakes, and lower bandwidth and network-pollution overhead.
+      #network-connection-summary.alert.alert-secondary.defcoin-connection-summary.d-none(role='status')
       ul.nav.nav-tabs(role='tablist')
         if settings.network_page.connections_table.enabled
           li.nav-item(role='presentation')
@@ -248,32 +1506,72 @@ block content
             table#connections-table.table.table-bordered.table-striped.table-paging.table-hover.mobile-border-right
               thead
                 tr(class=theadClasses)
-                  th.text-center #{settings.localization.net_address}
+                  th.text-end Node Id.
+                  th.text-end Dir.
+                  th.text-end
+                    | Known
+                    br
+                    | Name
+                  th.text-end IP Address
                   if settings.network_page.connections_table.port_filter != null && settings.network_page.connections_table.port_filter != -1
-                    th.text-center='Port'
-                  th.text-center #{settings.localization.net_protocol}
-                  th.text-center #{settings.localization.net_subversion}
-                  th.text-center #{settings.localization.net_country}
+                    th.text-end='Port'
+                  th.text-end Ping
+                  th.text-end Sent
+                  th.text-end Rec'd
+                  th.text-start User Agent
+                  th.text-center Magic
+                  th.text-center
+                    | Proto.
+                    br
+                    | Ver.
+                  th.text-center Services
+                  th.text-start
+                    | DNS Sort
+                    br
+                    | Name
               tbody.text-center
+            #seed-aggregator-summary.d-none
       if settings.network_page.addnodes_table.enabled || settings.network_page.onetry_table.enabled
         #addnodes.container.tab-pane(class=(settings.network_page.connections_table.enabled ? '' : 'active'), style='margin-top:0;border-top:0;')
           .card.card-default.border-0
-            if settings.network_page.addnodes_table.enabled
-              .card-body.border-top-0
-                p If you have trouble syncing your wallet, add these lines to your coin daemon .conf file and restart the wallet.
-                p
-                  em Typically you can access the config file through QT-wallet menu, Tools > Open Wallet Configuration File
-              table#addnodes-table.table.table-bordered.table-striped.table-paging.table-hover.mobile-border-right
-                thead
-                  tr(class=theadClasses)
-                    th AddNode Config Lines
-                tbody
             if settings.network_page.onetry_table.enabled
               .card-body.border-top-0
-                p If you have trouble syncing your wallet, run these lines in the coin wallet debug window, or add them with 
-                  em coindaemon-cli
+                h5.mb-3 1. Add Nodes Via Wallet Console
+                p.mb-2 Use this option if your sync is stuck or slow.
+                ul.mb-0
+                  li.mb-2
+                    strong Usually Unnecessary:
+                    |  Defcoin’s built-in seed servers automatically handle peer discovery. Manual adding is only needed if your sync stalls.
+                  li.mb-2
+                    strong Modern Wallets:
+                    |  Nodes must be added one command at a time. Copy a single row below, open your RPC Console, paste, and press &lt;Enter&gt;.
+                  li
+                    strong Legacy Wallets (v1.0.2 and earlier):
+                    |  Allows batch pasting. Open your wallet, go to Help > Debug window > Console, click Copy All under the table, and paste the entire block at once.
               table#onetry-table.table.table-bordered.table-striped.table-paging.table-hover.mobile-border-right
                 thead
                   tr(class=theadClasses)
-                    th OneTry Node Lines
+                    th Debug Console Commands
+                tbody
+            if settings.network_page.addnodes_table.enabled
+              .card-body.border-top-0
+                h5.mb-3 2. Add Nodes Through the Wallet Config File
+                p.mb-2 Use this option if you want your wallet to remember these peers after you restart it. The config file keeps a saved list of nodes your wallet can try every time it starts.
+                p.mb-2
+                  strong 2a. One at a time:
+                  |  click the copy button beside any row below, then open the Defcoin QT wallet and go to
+                  em  Tools > Open Wallet Configuration File
+                  | . Paste in one line at a time. Each line uses this format:
+                  code  addnode=peer.example.org:1337
+                p.mb-0
+                  strong 2b. Copy All:
+                  |  use the
+                  em  Copy All
+                  |  button beside the
+                  em  Showing ... entries
+                  |  line under the table to copy the full list, paste it into the config file, save it, and then restart the wallet.
+              table#addnodes-table.table.table-bordered.table-striped.table-paging.table-hover.mobile-border-right
+                thead
+                  tr(class=theadClasses)
+                    th Wallet Config Lines
                 tbody

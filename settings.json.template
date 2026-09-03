@@ -10,9 +10,9 @@
   // dbsettings: a collection of settings that allow the explorer to connect to MongoDB
   "dbsettings": {
     // user: The MongoDB username
-    "user": "eiquidus",
+    "user": "",
     // password: The MongoDB password
-    "password": "Nd^p2d77ceBX!L",
+    "password": "",
     // database: The MongoDB database name (default: explorerdb)
     "database": "explorerdb",
     // address: The MongoDB hostname. This should always be 'localhost' if connecting to a local instance, otherwise specify the ip address of a remote instance
@@ -28,9 +28,9 @@
     // port: The port # that the wallet is configured to listen for RPC requests on (default: 51573 for Exor wallet)
     "port": 51573,
     // username: The wallet RPC username
-    "username": "exorrpc",
+    "username": "",
     // password: The wallet RPC password
-    "password": "sSTLyCkrD94Y8&9mr^m6W^Mk367Vr!!K"
+    "password": ""
   },
 
   // webserver: a collection of settings that pertain to the node.js express web framework (read more: https://www.npmjs.com/package/express)
@@ -1651,8 +1651,9 @@
   //          Leaving a cmd value blank ( "" ) will completely disable use of that cmd.
   //          NOTICE: Some apis such as getblockhash for example, are integral to the functionality of the explorer and will result in a fairly unusable experience if disabled.
   "api_cmds": {
-    // use_rpc: Determine whether to call rpc api cmds directly using the faster rpc method or using the older method via internal http api (true/false)
-    //          NOTE: This should always be set to true unless there is a specific need to test or log certain apis
+    // use_rpc: Call daemon RPC directly. Production must keep this true because
+    //          the legacy internal-HTTP mode shares the public API authorization
+    //          surface and is rejected by the production preflight.
     "use_rpc": true,
     // rpc_concurrent_tasks: The maximum number of rpc cmds that can be run simultaneously. Additional rpc cmds will go into a queue and be run on a first-in-first-out basis
     "rpc_concurrent_tasks": 1,
@@ -1846,7 +1847,7 @@
     //                     NOTE: This is used as an internal password for your own plugins that can be run on different servers to validate that plugin data being received by the explorer is coming from you and not from a malicious user
     //                           This code should be a random set of numbers, letters and special characters that cannot be easily guessed that must also match the plugin_secret_code in all plugin external.settings.json files
     //                     WARNING: Be sure to change the default secret code as it is only a sample and will be the first code that malicious users try to use to manipulate your explorer's data
-    "plugin_secret_code": "SJs2=&r^ScLGLgTaNm7#74=s?48zf*4+vm5S",
+    "plugin_secret_code": "",
     // allowed_plugins: A collection of settings that pertain to the list of plugins allowed to be used with this explorer instance
     //                  You can add as many plugins as necessary in the following format: [ { "plugin_name": "new_plugin_1", "enabled": "true" }, { "plugin_name": "new_plugin_2", "enabled": "false" } ]
     //                  NOTE: Plugins enabled here must also have the actual plugin downloaded into the explorer's /plugins directory with the same name as the plugin_name specified here or they will be ignored
@@ -1865,9 +1866,9 @@
   // benchmark: a collection of settings that allow the benchmark to connect to MongoDB
   "benchmark": {
     // user: The MongoDB username used only for the benchmark script
-    "user": "eiquidus",
+    "user": "",
     // password: The MongoDB password used only for the benchmark script
-    "password": "Nd^p2d77ceBX!L",
+    "password": "",
     // database: The MongoDB database name used only for the benchmark script
     "database": "explorer-benchmark",
     // address: The MongoDB hostname. This should always be 'localhost' if connecting to a local instance, otherwise specify the ip address of a remote instance

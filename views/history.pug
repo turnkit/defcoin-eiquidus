@@ -1,0 +1,302 @@
+extends layout
+
+mixin evidenceLink(evidence)
+  if evidence != null && evidence.url != null && evidence.label != null
+    a(href=evidence.url)= evidence.label
+  else
+    span —
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title Defcoin History
+          .sub-page-header.text-muted
+            | Live references, semi-retired snapshots, and older infrastructure are grouped separately so working community links do not get buried in dead-link buckets.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong History Overview
+      .card-body
+        .defcoin-callout
+          p.mb-2.defcoin-helper
+            | This page was regenerated from structured history data on #{generatedOn}. Active references stay active, semi-retired snapshots stay in their own middle bucket, and only dead or parked surfaces fall into the retired sections.
+          p.mb-0.defcoin-helper
+            | Dates in the evidence columns link to the specific capture or reference that justified the first-seen or last-seen value. Unknowns are left explicit instead of guessed.
+        .defcoin-page-grid.two-up
+          .defcoin-stat-card
+            span.stat-label Current Surfaces
+            ul.mb-0
+              each item in currentSurfaces
+                li
+                  a(href=item.url)= item.label
+          .defcoin-stat-card
+            span.stat-label Research Notes
+            ul.mb-0
+              each note in researchNotes
+                li= note
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Active Community And References
+      .card-body
+        .table-responsive
+          table.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th Link
+                th Notes
+            tbody
+              each item in activeReferences
+                tr
+                  td
+                    a(href=item.url)= item.label
+                  td= item.note
+
+  if activePools && activePools.length
+    .col-12
+      .card.card-default.border-0.cardSpacer
+        .card-header
+          strong Active Pools
+        .card-body
+          .table-responsive
+            table.table.table-bordered.table-striped.table-hover
+              thead
+                tr
+                  th Pool
+                  th Operator
+                  th Website
+                  th Stratum
+                  th Last Seen
+                  th Notes
+              tbody
+                each item in activePools
+                  tr
+                    td= item.name
+                    td= item.operator || 'Unknown'
+                    td
+                      if item.websiteUrl
+                        a(href=item.websiteUrl)= item.websiteUrl
+                      else
+                        span —
+                    td
+                      if item.stratumUrl
+                        code= item.stratumUrl
+                      else
+                        span —
+                    td
+                      +evidenceLink(item.lastSeen)
+                    td= item.note
+
+  if poolTimeline && poolTimeline.items && poolTimeline.items.length
+    .col-12
+      .card.card-default.border-0.cardSpacer.defcoin-pool-timeline-card
+        .card-header
+          strong Pool Timeline
+        .card-body
+          .defcoin-callout
+            p.mb-0.defcoin-helper
+              | Vertical bars show the first-to-last observed evidence window for each pool. They do not prove uninterrupted uptime between those dates; unknown-dated pools remain in the tables below until a dated source is found.
+          .defcoin-pool-timeline(role='img', aria-label=`Defcoin pool observed timeline from ${poolTimeline.startYear} through ${poolTimeline.endYear}`)
+            .defcoin-pool-timeline-inner(style=`grid-template-columns: 74px repeat(${poolTimeline.items.length}, minmax(92px, 1fr));`)
+              .defcoin-pool-timeline-axis
+                each tick in poolTimeline.ticks
+                  .defcoin-pool-timeline-tick(style=`top: ${tick.pct}%;`)
+                    span= tick.label
+              each item in poolTimeline.items
+                .defcoin-pool-timeline-column(title=`${item.name}: ${item.startLabel} to ${item.endLabel}. ${item.note}`)
+                  .defcoin-pool-timeline-name
+                    if item.url
+                      a(href=item.url)= item.name
+                    else
+                      span= item.name
+                  .defcoin-pool-timeline-rail
+                    each tick in poolTimeline.ticks
+                      .defcoin-pool-timeline-gridline(style=`top: ${tick.pct}%;`)
+                    .defcoin-pool-timeline-bar(class=item.active ? 'active' : '', style=`--pool-start: ${item.startPct}%; --pool-span: ${item.spanPct}%;`)
+                  .defcoin-pool-timeline-dates
+                    span= item.startLabel
+                    span= item.endLabel
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Source Authority And Network Identity
+      .card-body
+        .defcoin-callout
+          p.mb-0.defcoin-helper
+            | These links anchor the Defcoin history to archived official sites and source trees. Network identity notes are intentionally cautious where the public record is unclear.
+        .defcoin-page-grid.two-up
+          .defcoin-stat-card
+            span.stat-label Source Links
+            ul.mb-0
+              each item in sourceAuthority
+                li
+                  a(href=item.url)= item.label
+                  |  — #{item.note}
+          .defcoin-stat-card
+            span.stat-label Network Identity Notes
+            ul.mb-0
+              each note in networkIdentityNotes
+                li= note
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Semi-Retired Snapshots
+      .card-body
+        .table-responsive
+          table.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th Snapshot
+                th First Seen
+                th Last Seen
+                th Notes
+            tbody
+              each item in semiRetiredSnapshots
+                tr
+                  td
+                    a(href=item.url)= item.label
+                  td
+                    +evidenceLink(item.firstSeen)
+                  td
+                    +evidenceLink(item.lastSeen)
+                  td= item.note
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Retired Project Sites
+      .card-body
+        .table-responsive
+          table.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th Site
+                th First Seen
+                th Last Seen
+                th Archive
+                th Notes
+            tbody
+              each item in retiredProjectSites
+                tr
+                  td= item.label
+                  td
+                    +evidenceLink(item.firstSeen)
+                  td
+                    +evidenceLink(item.lastSeen)
+                  td
+                    if item.archiveUrl
+                      a(href=item.archiveUrl) Wayback search
+                    else
+                      span —
+                  td= item.note
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Shuttered Defcoin Utility Sites
+      .card-body
+        .table-responsive
+          table.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th Utility
+                th Purpose
+                th First Seen
+                th Last Seen
+                th Best Link
+                th Status
+            tbody
+              each item in shutteredUtilities
+                tr
+                  td
+                    if item.originalUrl
+                      a(href=item.originalUrl)= item.name
+                    else
+                      span= item.name
+                  td= item.purpose
+                  td
+                    +evidenceLink(item.firstSeen)
+                  td
+                    +evidenceLink(item.lastSeen)
+                  td
+                    if item.bestUrl
+                      a(href=item.bestUrl) Archive / best surviving link
+                    else
+                      span —
+                  td= item.status
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Retired Pools
+      .card-body
+        .table-responsive
+          table.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th Pool
+                th Operator
+                th First Seen
+                th Last Seen
+                th Original URL
+                th Archive
+                th Notes
+            tbody
+              each item in retiredPools
+                tr
+                  td= item.name
+                  td= item.operator || 'Unknown'
+                  td
+                    +evidenceLink(item.firstSeen)
+                  td
+                    +evidenceLink(item.lastSeen)
+                  td
+                    if item.originalUrl
+                      a(href=item.originalUrl)= item.originalUrl
+                      if item.alternateUrls && item.alternateUrls.length
+                        ul.defcoin-compact-link-list
+                          each alternateUrl in item.alternateUrls
+                            li
+                              a(href=alternateUrl)= alternateUrl
+                    else
+                      span Unknown / still researching
+                  td
+                    if item.archiveUrl
+                      a(href=item.archiveUrl) Wayback search
+                    else
+                      span —
+                  td= item.note
+
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Defcoin Timeline
+      .card-body
+        .defcoin-callout
+          p.mb-0.defcoin-helper
+            | Oldest known chain events are listed first. Each timestamp links to the transaction evidence used for this history page.
+        .table-responsive
+          table.table.table-bordered.table-striped.table-hover
+            thead
+              tr
+                th Date / Time
+                th Event
+                th Evidence
+                th Notes
+            tbody
+              each item in chainTimeline
+                tr
+                  td= item.time
+                  td= item.title
+                  td
+                    a(href=item.url) Block explorer transaction
+                  td= item.note

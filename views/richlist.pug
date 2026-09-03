@@ -1,8 +1,44 @@
 extends layout
 
 block content
+  mixin richlistRoundedAmount(value)
+    - const richlistAmountWhole = Math.round(Number(value.replace(/,/g, ''))).toLocaleString('en-US');
+    span.richlist-rounded-number
+      span.richlist-decimal-int #{richlistAmountWhole}
+      span.richlist-decimal-marker .-
+
+  mixin richlistPercent(value)
+    - const richlistPercentParts = value.split('.');
+    span.richlist-decimal-number
+      span.richlist-decimal-int #{richlistPercentParts[0]}
+      span.richlist-decimal-point .
+      span.richlist-decimal-frac #{richlistPercentParts[1]}
+
   script.
     $(document).ready(function() {
+      function initRichlistTable(selector, initialOrder) {
+        const table = $(selector);
+
+        if (table.length == 0 || $.fn.DataTable.isDataTable(selector))
+          return;
+
+        table.DataTable({
+          autoWidth: false,
+          info: false,
+          lengthChange: false,
+          order: initialOrder,
+          ordering: true,
+          paging: false,
+          searching: false
+        });
+      }
+
+      initRichlistTable('#richlist-balance-table', [[0, 'asc']]);
+      initRichlistTable('#richlist-received-table', [[0, 'asc']]);
+      $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
+        fixDataTableColumns();
+      });
+
       if ('#{settings.richlist_page.page_header.show_last_updated}' == 'true') {
         const lastUpdatedDate = #{(last_updated == null || last_updated == '0' ? 0 : last_updated)};
 
@@ -46,6 +82,7 @@ block content
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
               legend: {
                 display: false
@@ -68,10 +105,7 @@ block content
     .row(style='margin: 0 0 5px 0;')
       div(class=(settings.richlist_page.wealth_distribution.show_distribution_table == true || settings.richlist_page.wealth_distribution.show_distribution_chart == true ? 'col-xs-12' : 'col-12'))
         .container
-          #page-header-container(style='align-items:' + (settings.richlist_page.page_header.show_img == true && settings.richlist_page.page_header.show_title == true && settings.richlist_page.page_header.show_last_updated == true && settings.richlist_page.page_header.show_description == true ? 'flex-start' : 'center'))
-            if settings.richlist_page.page_header.show_img == true
-              #header-img-container
-                img#header-img(src=(settings.shared_pages.page_header.page_title_image == null || settings.shared_pages.page_header.page_title_image.image_path == null || settings.shared_pages.page_header.page_title_image.image_path == '' ? '/img/page-title-img.png' : settings.shared_pages.page_header.page_title_image.image_path))
+          #page-header-container
             #page-title-container
               if settings.richlist_page.page_header.show_title == true
                 h3#page-title #{settings.localization.rl_title.replace('{1}', settings.coin.name)}
@@ -91,10 +125,11 @@ block content
                     .sub-page-header.text-muted=settings.localization.rl_description.replace('{1}', settings.coin.name)
                 else
                   .sub-page-header.text-muted=settings.localization.rl_description.replace('{1}', settings.coin.name)
+            +defcoinPageBranding()
           .cardSpacer.clearfix
   .row(style='margin-left:0;margin-right:0;')
     if settings.richlist_page.show_current_balance == true || settings.richlist_page.show_received_coins == true
-      div(class=(settings.richlist_page.wealth_distribution.show_distribution_table == true || settings.richlist_page.wealth_distribution.show_distribution_chart == true ? 'col-xs-12 col-lg-8' : 'col-12'))
+      #richlist-main-column(class=(settings.richlist_page.wealth_distribution.show_distribution_table == true || settings.richlist_page.wealth_distribution.show_distribution_chart == true ? 'col-xs-12 col-lg-auto' : 'col-12'))
         .container
           ul.nav.nav-tabs(role='tablist')
             if settings.richlist_page.show_current_balance == true
@@ -107,154 +142,140 @@ block content
           if settings.richlist_page.show_current_balance == true
             #balance(class='container tab-pane' + (settings.richlist_page.show_current_balance == true ? ' active' : ''), style='margin-top:0;')
               .card.card-default.border-0
-                table.table.table-hover.table-bordered.table-striped.summary-table.right-border-0(style='margin-bottom:0;', cellspacing='0')
+                table#richlist-balance-table.table.table-hover.table-bordered.table-striped.summary-table.right-border-0.richlist-sortable-table(style='margin-bottom:0;', cellspacing='0')
                   thead
                     tr(class=theadClasses)
-                      th.text-center
+                      th.text-center.richlist-rank-cell
                         span.fa-solid.fa-flag-checkered
-                      th #{settings.localization.tx_address}
-                      th.text-center #{settings.localization.rl_balance}
+                      th.richlist-address-cell #{settings.localization.tx_address}
+                      th.text-end.richlist-amount-cell #{settings.localization.rl_balance}
                         span.small.fw-normal  (#{settings.coin.symbol})
-                      th.text-center %
+                      th.text-end.richlist-percent-cell %
                   tbody
                     - let count = 0;
                     each address in balance
                       - count++;
-                      - const itemFixedParts = address.balanceFixed.split('.');
-                      - const percentParts = address.percentFixed.split('.');
+                      - const addressSort = (settings.claim_address_page.enabled == false || address.claim_name == null || address.claim_name == '' ? address.a_id : address.claim_name);
+                      - const balanceSort = (address.balance == null ? address.balanceFixed.replace(/,/g, '') : address.balance.toString());
+                      - const percentSort = address.percentFixed.replace(/,/g, '');
                       tr
-                        td.text-center
+                        td.text-center.richlist-rank-cell(data-order=count)
                           =count
-                        td
+                        td.richlist-address-cell(data-order=addressSort)
                           if settings.claim_address_page.enabled == false || address.claim_name == null || address.claim_name == ''
                             a.breakWord(href='/address/' + address.a_id) #{address.a_id}
                           else
                             a.breakWord(href='/address/' + address.a_id) #{address.claim_name}
                           include ./includes/rl_labels.pug
-                        td.text-center #{itemFixedParts[0]}.
-                          span.decimal #{itemFixedParts[1]}
-                        td.text-center #{percentParts[0]}.
-                          span.decimal #{percentParts[1]}
+                        td.text-end.richlist-decimal-cell.richlist-amount-cell(data-order=balanceSort)
+                          +richlistRoundedAmount(address.balanceFixed)
+                        td.text-end.richlist-decimal-cell.richlist-percent-cell(data-order=percentSort)
+                          +richlistPercent(address.percentFixed)
           if settings.richlist_page.show_received_coins == true
             #received(class='container tab-pane' + (!settings.richlist_page.show_current_balance ? ' active' : ''), style='margin-top:0;')
               .card.card-default.border-0
-                table.table.table-hover.table-bordered.table-striped.summary-table.right-border-0(style='margin-bottom:0;', cellspacing='0')
+                table#richlist-received-table.table.table-hover.table-bordered.table-striped.summary-table.right-border-0.richlist-sortable-table(style='margin-bottom:0;', cellspacing='0')
                   thead
                     tr(class=theadClasses)
-                      th.text-center
+                      th.text-center.richlist-rank-cell
                         span.fa-solid.fa-flag-checkered
-                      th #{settings.localization.tx_address}
-                      th.text-center #{settings.localization.rl_received}
+                      th.richlist-address-cell #{settings.localization.tx_address}
+                      th.text-end.richlist-amount-cell #{settings.localization.rl_received}
                         span.small.fw-normal  (#{settings.coin.symbol})
                   tbody
                     - let count = 0;
                     each address in received
                       - count++;
-                      - const itemFixedParts = address.receivedFixed.split('.');
+                      - const addressSort = (settings.claim_address_page.enabled == false || address.claim_name == null || address.claim_name == '' ? address.a_id : address.claim_name);
+                      - const receivedSort = (address.received == null ? address.receivedFixed.replace(/,/g, '') : address.received.toString());
                       tr
-                        td.text-center
+                        td.text-center.richlist-rank-cell(data-order=count)
                           =count
-                        td
+                        td.richlist-address-cell(data-order=addressSort)
                           if settings.claim_address_page.enabled == false || address.claim_name == null || address.claim_name == ''
                             a.breakWord(href='/address/' + address.a_id) #{address.a_id}
                           else
                             a.breakWord(href='/address/' + address.a_id) #{address.claim_name}
                           include ./includes/rl_labels.pug
-                        td.text-center #{itemFixedParts[0]}.
-                          span.decimal #{itemFixedParts[1]}
+                        td.text-end.richlist-decimal-cell.richlist-amount-cell(data-order=receivedSort)
+                          +richlistRoundedAmount(address.receivedFixed)
     if settings.richlist_page.wealth_distribution.show_distribution_table == true || settings.richlist_page.wealth_distribution.show_distribution_chart == true
-      div(class=(settings.richlist_page.show_received_coins == true || settings.richlist_page.show_current_balance == true ? 'col-xs-12 col-lg-4' : 'col-12'))
+      #richlist-distribution-column(class=(settings.richlist_page.show_received_coins == true || settings.richlist_page.show_current_balance == true ? 'col-xs-12 col-lg' : 'col-12'))
         if settings.richlist_page.wealth_distribution.show_distribution_table == true
           #summary-panel.card.card-default.border-0(style='margin-top:' + (settings.richlist_page.show_current_balance == true || settings.richlist_page.show_received_coins == true ? '34' : '0') + 'px;')
             .card-header
               strong #{settings.localization.rl_wealth}
-            table.table.table-hover.table-bordered.summary-table.right-border-0(style='margin-bottom:0;')
+            table.table.table-hover.table-bordered.summary-table.right-border-0.richlist-distribution-table(style='margin-bottom:0;')
               thead
                 tr(class=theadClasses)
                   th
-                  th.text-center Amount
+                  th.text-end.richlist-amount-cell Amount
                     span.small.fw-normal  (#{settings.coin.symbol})
-                  th.text-center %
+                  th.text-end.richlist-percent-cell %
               tbody
                 tr
                   td.fw-bold
                     div.float-start.wealth-dist-color-box(style=('background-color:' + settings.richlist_page.wealth_distribution.colors[0] + ';'))
                     span #{settings.localization.rl_top25}
-                  - var totalParts = dista.totalFixed.split('.');
-                  - var percentParts = dista.percentFixed.split('.');
-                  td.text-center.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(dista.totalFixed)
+                  td.text-end.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(dista.percentFixed)
                 tr
                   td.fw-bold
                     div.float-start.wealth-dist-color-box(style=('background-color:' + settings.richlist_page.wealth_distribution.colors[1] + ';'))
                     span #{settings.localization.rl_top50}
-                  - var totalParts = distb.totalFixed.split('.');
-                  - var percentParts = distb.percentFixed.split('.');
-                  td.text-center.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(distb.totalFixed)
+                  td.text-end.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(distb.percentFixed)
                 tr
                   td.fw-bold
                     div.float-start.wealth-dist-color-box(style=('background-color:' + settings.richlist_page.wealth_distribution.colors[2] + ';'))
                     span #{settings.localization.rl_top75}
-                  - var totalParts = distc.totalFixed.split('.');
-                  - var percentParts = distc.percentFixed.split('.');
-                  td.text-center.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(distc.totalFixed)
+                  td.text-end.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(distc.percentFixed)
                 tr
                   td.fw-bold
                     div.float-start.wealth-dist-color-box(style=('background-color:' + settings.richlist_page.wealth_distribution.colors[3] + ';'))
                     span #{settings.localization.rl_top100}
-                  - var totalParts = distd.totalFixed.split('.');
-                  - var percentParts = distd.percentFixed.split('.');
-                  td.text-center.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(distd.totalFixed)
+                  td.text-end.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(distd.percentFixed)
                 tr.text-end
                   td.fw-bold
                     span #{settings.localization.total_top_100}
-                  - var totalParts = distsubtotal.totalFixed.split('.');
-                  - var percentParts = distsubtotal.percentFixed.split('.');
-                  td.text-center.fw-bold.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.fw-bold.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.fw-bold.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(distsubtotal.totalFixed)
+                  td.text-end.fw-bold.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(distsubtotal.percentFixed)
                 tr
                   td.fw-bold
                     div.float-start.wealth-dist-color-box(style=('background-color:' + settings.richlist_page.wealth_distribution.colors[4] + ';'))
                     span 101+
-                  - var totalParts = diste.totalFixed.split('.');
-                  - var percentParts = diste.percentFixed.split('.');
-                  td.text-center.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(diste.totalFixed)
+                  td.text-end.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(diste.percentFixed)
                 if settings.richlist_page.burned_coins.include_burned_coins_in_distribution == true && burned != null && parseFloat(burned.total) > 0
                   tr
                     td.fw-bold
                       div.float-start.wealth-dist-color-box(style=('background-color:' + settings.richlist_page.wealth_distribution.colors[5] + ';'))
                       span Burned Coins
-                    - var totalParts = burned.totalFixed.split('.');
-                    - var percentParts = burned.percentFixed.split('.');
-                    td.text-center.breakWord #{totalParts[0]}.
-                      span.decimal.breakWord #{totalParts[1]}
-                    td.text-center #{percentParts[0]}.
-                      span.decimal #{percentParts[1]}
+                    td.text-end.richlist-decimal-cell.richlist-amount-cell
+                      +richlistRoundedAmount(burned.totalFixed)
+                    td.text-end.richlist-decimal-cell.richlist-percent-cell
+                      +richlistPercent(burned.percentFixed)
                 tr.text-end
                   td.fw-bold
                     span #{settings.localization.total}
-                  - var totalParts = disttotal.totalFixed.split('.');
-                  - var percentParts = disttotal.percentFixed.split('.');
-                  td.text-center.fw-bold.breakWord #{totalParts[0]}.
-                    span.decimal.breakWord #{totalParts[1]}
-                  td.fw-bold.text-center #{percentParts[0]}.
-                    span.decimal #{percentParts[1]}
+                  td.text-end.fw-bold.richlist-decimal-cell.richlist-amount-cell
+                    +richlistRoundedAmount(disttotal.totalFixed)
+                  td.text-end.fw-bold.richlist-decimal-cell.richlist-percent-cell
+                    +richlistPercent(disttotal.percentFixed)
                 if settings.richlist_page.wealth_distribution.show_address_count == true
                   tr.text-end
                     td.fw-bold
@@ -262,4 +283,5 @@ block content
                     td.text-center.breakWord(colspan='2')
                       span #{address_count}
         if settings.richlist_page.wealth_distribution.show_distribution_chart == true
-          canvas#pieChart(style="margin-top:10px;max-height:305px;")
+          .richlist-chart-frame
+            canvas#pieChart

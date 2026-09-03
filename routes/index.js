@@ -3,8 +3,28 @@ const router = express.Router();
 const settings = require('../lib/settings');
 const db = require('../lib/database');
 const lib = require('../lib/explorer');
+const defcoinHistoryData = require('../lib/defcoin_history_data');
+const defcoinMiningCatalog = require('../lib/defcoin_mining_catalog');
+const defcoinStatsClient = require('../lib/defcoin_stats_client');
+const defcoinHashrateHistory = require('../lib/defcoin_hashrate_history');
+const defcoinStatsHistory = require('../lib/defcoinstats_history');
+const defcoinTimelineEvents = require('../lib/defcoin_timeline_events');
+const inputguard = require('../lib/inputguard');
 const async = require('async');
 const Decimal = require('decimal.js');
+
+const PAPER_WALLET_TABS = Object.freeze([
+  'singlewallet',
+  'paperwallet',
+  'bulkwallet',
+  'brainwallet',
+  'vanitywallet',
+  'splitwallet',
+  'detailwallet'
+]);
+const DEFAULT_PAPER_WALLET_TAB = 'paperwallet';
+
+defcoinHashrateHistory.startSampler();
 
 function send_block_data(res, block, txs, title_text, orphan) {
   let extracted_by_addresses = [];
@@ -220,9 +240,36 @@ function get_theme_hash() {
   return get_file_timestamp('./public/css/themes/' + settings.shared_pages.theme.toLowerCase() + '/bootstrap.min.css');
 }
 
+function render_integrated_page(res, view, active, pageTitlePrefix, renderData) {
+  res.render(
+    view,
+    Object.assign(
+      {
+        active: active,
+        showSync: db.check_show_sync_message(),
+        customHash: get_custom_hash(),
+        styleHash: get_style_hash(),
+        themeHash: get_theme_hash(),
+        page_title_prefix: pageTitlePrefix
+      },
+      (renderData == null ? {} : renderData)
+    )
+  );
+}
+
+function normalize_paper_wallet_tab(rawTab) {
+  const requestedTab = String(rawTab || '').trim().toLowerCase();
+  return PAPER_WALLET_TABS.includes(requestedTab) ? requestedTab : DEFAULT_PAPER_WALLET_TAB;
+}
+
 /* GET functions */
 
 function route_get_block(res, blockhash) {
+  blockhash = String(blockhash || '').trim();
+
+  if (!inputguard.isHash64(blockhash) && !inputguard.isHeight(blockhash))
+    return route_get_txlist(res, 'Block not found: invalid block value');
+
   lib.get_block(blockhash, function (block) {
     if (block && block != `${settings.localization.ex_error}: ${settings.localization.check_console}`) {
       if (blockhash == settings.block_page.genesis_block)
@@ -255,6 +302,11 @@ function route_get_block(res, blockhash) {
 }
 
 function route_get_tx(res, txid) {
+  txid = String(txid || '').trim();
+
+  if (!inputguard.isHash64(txid))
+    return route_get_txlist(res, 'Transaction not found: invalid transaction id');
+
   if (txid == settings.transaction_page.genesis_tx)
     route_get_block(res, settings.block_page.genesis_block);
   else {
@@ -374,13 +426,18 @@ function route_get_txlist(res, error) {
         customHash: get_custom_hash(),
         styleHash: get_style_hash(),
         themeHash: get_theme_hash(),
-        page_title_prefix: settings.coin.name + ' ' + 'Block Explorer'
+        page_title_prefix: settings.coin.name + ' Blockchain Explorer'
       }
     );
   });
 }
 
 function route_get_address(res, hash) {
+  hash = String(hash || '').trim();
+
+  if (!inputguard.isAddressLike(hash))
+    return route_get_txlist(res, 'Address not found: invalid address');
+
   // check if trying to load a special address
   if (hash != null && hash.toLowerCase() != 'coinbase' && ((hash.toLowerCase() == 'hidden_address' && settings.address_page.enable_hidden_address_view == true) || (hash.toLowerCase() == 'unknown_address' && settings.address_page.enable_unknown_address_view == true) || (hash.toLowerCase() != 'hidden_address' && hash.toLowerCase() != 'unknown_address'))) {
     // lookup address in local collection
@@ -407,6 +464,8 @@ function route_get_claim_form(res, hash) {
     if (hash == null || hash == '') {
       // no hash so just load the claim page without an address
       send_claimaddress_data(res, hash, '');
+    } else if (!inputguard.isAddressLike(hash)) {
+      route_get_txlist(res, 'Address not found: invalid address');
     } else {
       // lookup hash in the address collection
       db.get_claim_name(hash, function(claim_name) {
@@ -453,7 +512,7 @@ router.get('/info', function(req, res) {
       'info',
       {
         active: 'info',
-        address: req.headers.host,
+        address: req.headers.host + '/explorer',
         showSync: db.check_show_sync_message(),
         customHash: get_custom_hash(),
         styleHash: get_style_hash(),
@@ -466,6 +525,128 @@ router.get('/info', function(req, res) {
     // api page is not enabled so default to the tx list page
     route_get_txlist(res, null);
   }
+});
+
+router.get(['/pool', '/standalone/pool'], function(req, res) {
+  render_integrated_page(
+    res,
+    'pool',
+    'pool',
+    settings.coin.name + ' Pool',
+    {}
+  );
+});
+
+router.get(['/mining-stats', '/standalone/mining-stats'], async function(req, res) {
+  try {
+    // Public callers may not bypass the shared upstream cache. Scheduled
+    // collectors can still request an internal refresh through the library.
+    const miningStats = await defcoinStatsClient.fetchMiningStats(false);
+    const hashrateHistory = await defcoinHashrateHistory.getChartData().catch((err) => {
+      console.log(`Defcoin hashrate chart error: ${err.message}`);
+      return null;
+    });
+    const defcoinStatsHistorical = await defcoinStatsHistory.getChartData().catch((err) => {
+      console.log(`DefcoinStats historical chart error: ${err.message}`);
+      return null;
+    });
+    const timelineEvents = defcoinTimelineEvents.buildTimelineEvents();
+    const energyDefaults = defcoinTimelineEvents.getEnergyDefaults();
+    render_integrated_page(
+      res,
+      'mining_stats',
+      'mining-stats',
+      settings.coin.name + ' Mining Stats',
+      {
+        miningStats: miningStats,
+        hashrateHistory: hashrateHistory,
+        hashrateHistoryJson: JSON.stringify(hashrateHistory || {sources: [], samples: []}).replace(/</g, '\\u003c'),
+        defcoinStatsHistorical: defcoinStatsHistorical,
+        defcoinStatsHistoricalJson: JSON.stringify(defcoinStatsHistorical || {sources: [], samples: []}).replace(/</g, '\\u003c'),
+        timelineEvents: timelineEvents,
+        timelineEventsJson: JSON.stringify({events: timelineEvents, draft: false}).replace(/</g, '\\u003c'),
+        energyDefaults: energyDefaults,
+        energyDefaultsJson: JSON.stringify(energyDefaults).replace(/</g, '\\u003c')
+      }
+    );
+  } catch (err) {
+    const energyDefaults = defcoinTimelineEvents.getEnergyDefaults();
+    render_integrated_page(
+      res,
+      'mining_stats',
+      'mining-stats',
+      settings.coin.name + ' Mining Stats',
+      {
+        miningStats: null,
+        miningStatsError: err.message,
+        hashrateHistory: null,
+        hashrateHistoryJson: JSON.stringify({sources: [], samples: []}),
+        defcoinStatsHistorical: null,
+        defcoinStatsHistoricalJson: JSON.stringify({sources: [], samples: []}),
+        timelineEvents: [],
+        timelineEventsJson: JSON.stringify({events: [], draft: false}),
+        energyDefaults: energyDefaults,
+        energyDefaultsJson: JSON.stringify(energyDefaults).replace(/</g, '\\u003c')
+      }
+    );
+  }
+});
+
+router.get(['/calc', '/reward-calculator', '/standalone/calc'], function(req, res) {
+  render_integrated_page(
+    res,
+    'reward_calculator',
+    'calc',
+    settings.coin.name + ' Reward Calculator',
+    {}
+  );
+});
+
+router.get(['/qrgen', '/qr-generator', '/standalone/qrgen'], function(req, res) {
+  render_integrated_page(
+    res,
+    'qr_generator',
+    'qrgen',
+    settings.coin.name + ' QR Generator',
+    {}
+  );
+});
+
+router.get(['/history', '/standalone/history'], function(req, res) {
+  render_integrated_page(
+    res,
+    'history',
+    'history',
+    settings.coin.name + ' History',
+    Object.assign({}, defcoinHistoryData)
+  );
+});
+
+router.get(['/mine', '/standalone/mine'], function(req, res) {
+  render_integrated_page(
+    res,
+    'mine',
+    'mine',
+    settings.coin.name + ' Mining Guide',
+    {
+      miningCatalog: defcoinMiningCatalog
+    }
+  );
+});
+
+router.get(['/paperwallet', '/standalone/paperwallet'], function(req, res) {
+  render_integrated_page(
+    res,
+    'paperwallet',
+    'paperwallet',
+    settings.coin.name + ' Paper Wallet',
+    {
+      paperWalletStaticPath: '/paperwallet-static/defcoin-paperwallet.html',
+      paperWalletBundlePath: '/paperwallet-static/defcoin-paperwallet-bundle.zip',
+      paperWalletTabs: PAPER_WALLET_TABS,
+      requestedTab: normalize_paper_wallet_tab(req.query.tab)
+    }
+  );
 });
 
 router.get('/markets/:market/:coin_symbol/:pair_symbol', function(req, res) {
@@ -914,9 +1095,12 @@ router.get('/orphans', function(req, res) {
 
 router.post('/search', function(req, res) {
   if (settings.shared_pages.page_header.search.enabled == true) {
-    var query = req.body.search.trim();
+    var query = inputguard.cleanSearch(req.body.search);
 
-    if (query.length == 64) {
+    if (query == '')
+      return route_get_txlist(res, settings.localization.ex_search_error + 'invalid search value');
+
+    if (inputguard.isHash64(query)) {
       if (query == settings.transaction_page.genesis_tx)
         res.redirect('/block/' + settings.block_page.genesis_block);
       else {
@@ -942,19 +1126,23 @@ router.post('/search', function(req, res) {
           }
         });
       }
-    } else {
+    } else if (inputguard.isAddressLike(query)) {
       db.get_address(query, false, function(address) {
         if (address)
           res.redirect('/address/' + address.a_id);
         else {
-          lib.get_blockhash(query, function(hash) {
-            if (hash && hash != `${settings.localization.ex_error}: ${settings.localization.check_console}`)
-              res.redirect('/block/' + hash);
-            else
-              route_get_txlist(res, settings.localization.ex_search_error + query);
-          });
+          route_get_txlist(res, settings.localization.ex_search_error + query);
         }
       });
+    } else if (inputguard.isHeight(query)) {
+      lib.get_blockhash(query, function(hash) {
+        if (hash && hash != `${settings.localization.ex_error}: ${settings.localization.check_console}`)
+          res.redirect('/block/' + hash);
+        else
+          route_get_txlist(res, settings.localization.ex_search_error + query);
+      });
+    } else {
+      route_get_txlist(res, settings.localization.ex_search_error + query);
     }
   } else {
     // search is disabled so load the tx list page with an error msg
@@ -963,10 +1151,12 @@ router.post('/search', function(req, res) {
 });
 
 router.get('/qr/:string', function(req, res) {
-  if (req.params.string) {
+  const qrPayload = inputguard.cleanQrPayload(req.params.string);
+
+  if (qrPayload !== '') {
     const qr = require('qr-image');
 
-    var address = qr.image(req.params.string, {
+    var address = qr.image(qrPayload, {
       type: 'png',
       size: 4,
       margin: 1,
@@ -975,7 +1165,8 @@ router.get('/qr/:string', function(req, res) {
 
     res.type('png');
     address.pipe(res);
-  }
+  } else
+    inputguard.reject(res, 400, 'Invalid QR payload');
 });
 
 module.exports = router;

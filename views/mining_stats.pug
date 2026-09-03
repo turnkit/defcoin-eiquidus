@@ -1,0 +1,2337 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer.mining-stats-hero-wrap
+    #page-header-container.explorer-hero.mining-stats-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h3#page-title Defcoin Miner Stats
+          .sub-page-header.text-muted
+            | Active P2Pool nodes first, with historical Defcoin pool references grouped below by first known activity.
+        +defcoinPageBranding('explorer-hero-mark')
+    .mining-stats-hero-spacer.clearfix
+
+block content
+  .col-12
+    .card.card-default.border-0.cardSpacer
+      .card-header
+        strong Defcoin Stats
+        if miningStats && miningStats.updatedAt
+          span.float-end.defcoin-table-meta Updated #{new Date(miningStats.updatedAt).toLocaleString()}
+      .card-body
+        if miningStatsError
+          .alert.alert-warning(role='alert') Mining stats are unavailable right now: #{miningStatsError}
+        else if miningStats
+          p.defcoin-helper
+            | Active rows are checked from live P2Pool APIs. The old DefcoinStats detail pages are treated as historical hints because several retired pools still show stale nonzero hashrate values there.
+
+          .defcoin-hashrate-history-card.mb-4
+            .defcoin-hashrate-history-head
+              div
+                h3 Recent Hashrate Timeline
+                p.defcoin-helper.mb-0
+                  | Lightweight 15-minute samples from answering P2Pool APIs. This chart starts when this server's sampler was enabled; older imported DefcoinStats data appears in the historical archive below. Yellow shows the estimated whole Defcoin network. Endpoint lines show recent local contribution and stop when a pool's share counter has not advanced for more than an hour.
+              if hashrateHistory && hashrateHistory.updatedAt
+                span.defcoin-table-meta.defcoin-latest-sample Latest sample #{new Date(hashrateHistory.updatedAt).toLocaleString()}
+            .defcoin-hashrate-chart-shell
+              canvas#defcoin-hashrate-chart(width='1200', height='460', aria-label='Defcoin hashrate history chart')
+              #defcoin-hashrate-empty.defcoin-hashrate-empty(style='display:none;') Hashrate history will appear after the first sampler writes data.
+              #defcoin-hashrate-event-tooltip.defcoin-chart-tooltip(style='display:none;')
+            #defcoin-hashrate-coverage-note.defcoin-hashrate-coverage-note(style='display:none;')
+            #defcoin-hashrate-window.defcoin-hashrate-window(role='slider', tabindex='0', aria-label='Visible hashrate history window')
+              .defcoin-hashrate-window-track
+              .defcoin-hashrate-window-selection
+              .defcoin-hashrate-window-handle.defcoin-hashrate-window-handle-start
+              .defcoin-hashrate-window-handle.defcoin-hashrate-window-handle-end
+            .defcoin-hashrate-range-row
+              span.defcoin-hashrate-range-title Visible time range
+              span#defcoin-hashrate-range-label.defcoin-hashrate-range-label Last Day
+              span.defcoin-hashrate-sample-note
+                | Sample interval: #{hashrateHistory && hashrateHistory.sampleIntervalMinutes ? hashrateHistory.sampleIntervalMinutes : 15} min.
+            .defcoin-hashrate-presets(role='group', aria-label='Hashrate history presets')
+              button.defcoin-hashrate-preset(type='button', data-range='1h') 1H
+              button.defcoin-hashrate-preset(type='button', data-range='2h') 2H
+              button.defcoin-hashrate-preset(type='button', data-range='6h') 6H
+              button.defcoin-hashrate-preset(type='button', data-range='12h') 12H
+              button.defcoin-hashrate-preset.active(type='button', data-range='24h') 24H
+              button.defcoin-hashrate-preset(type='button', data-range='2d') 2D
+              button.defcoin-hashrate-preset(type='button', data-range='7d') 7D
+              button.defcoin-hashrate-preset(type='button', data-range='month') Month
+              button.defcoin-hashrate-preset(type='button', data-range='year') Year
+              button.defcoin-hashrate-preset(type='button', data-range='all') All
+            #defcoin-hashrate-legend.defcoin-hashrate-legend
+            .defcoin-chart-control-row#defcoin-live-event-controls(role='group', aria-label='Hashrate history event overlays')
+              span.defcoin-chart-control-title Event overlays
+              label.defcoin-chart-toggle
+                input.defcoin-event-toggle(type='checkbox', value='conference', checked)
+                span DEF CON
+              label.defcoin-chart-toggle
+                input.defcoin-event-toggle(type='checkbox', value='history', checked)
+                span Defcoin history
+            details.defcoin-disclosure.defcoin-event-list-disclosure#defcoin-live-visible-events
+              summary.defcoin-disclosure-summary
+                span.defcoin-disclosure-arrow(aria-hidden='true')
+                span Visible events in this chart range
+                span.defcoin-disclosure-count#defcoin-live-event-count 0
+              .defcoin-visible-events-list#defcoin-live-event-list
+            details.defcoin-disclosure.defcoin-energy-disclosure
+              summary.defcoin-disclosure-summary
+                span.defcoin-disclosure-arrow(aria-hidden='true')
+                span Electricity cost calculator
+              .defcoin-energy-panel#defcoin-live-energy-panel
+                .defcoin-energy-panel-head
+                  div
+                    strong Estimated power cost for visible network hashrate
+                    p.defcoin-energy-summary.mb-0 Calculated from the selected timeline rectangle and editable hardware profiles.
+                  label.defcoin-energy-price-label
+                    span Electricity
+                    input.defcoin-energy-price(type='number', min='0', step='0.01', value=(energyDefaults && energyDefaults.defaultUsdPerKwh ? energyDefaults.defaultUsdPerKwh : 0.15))
+                    span USD/kWh
+                .table-responsive
+                  table.defcoin-energy-table
+                    thead
+                      tr
+                        th Hardware
+                        th.text-end Hashrate
+                        th.text-end Watts
+                        th.text-end Cost for range
+                    tbody
+                      if energyDefaults && energyDefaults.devices && energyDefaults.devices.length
+                        each device in energyDefaults.devices
+                          tr(data-device-id=device.id)
+                            td
+                              input.defcoin-device-name(type='text', value=device.name, aria-label='Hardware name')
+                              if device.note
+                                div.defcoin-device-note #{device.note}
+                            td
+                              input.defcoin-device-hashrate(type='number', min='0', step='1', value=device.hashrateHps, aria-label='Hardware hashrate in hashes per second')
+                            td
+                              input.defcoin-device-watts(type='number', min='0', step='1', value=device.watts, aria-label='Hardware watts')
+                            td.defcoin-device-cost -
+
+          script(type='application/json', id='defcoin-hashrate-history-data')!= (typeof hashrateHistoryJson !== 'undefined' && hashrateHistoryJson ? hashrateHistoryJson : '{"sources":[],"samples":[]}')
+          script(type='application/json', id='defcoin-timeline-events-data')!= (typeof timelineEventsJson !== 'undefined' && timelineEventsJson ? timelineEventsJson : '{"events":[],"draft":false}')
+          script(type='application/json', id='defcoin-energy-defaults-data')!= (typeof energyDefaultsJson !== 'undefined' && energyDefaultsJson ? energyDefaultsJson : '{"defaultUsdPerKwh":0.15,"devices":[]}')
+          script.
+            (function() {
+              if (window.DefcoinTimelineTools) return;
+
+              function parseJson(id, fallback) {
+                const el = document.getElementById(id);
+                if (!el) return fallback;
+                try {
+                  return JSON.parse(el.textContent || '');
+                } catch (err) {
+                  return fallback;
+                }
+              }
+
+              const eventPayload = parseJson('defcoin-timeline-events-data', {events: []});
+              const timelineEvents = Array.isArray(eventPayload.events) ? eventPayload.events : [];
+
+              function colorToRgba(color, alpha) {
+                const hex = String(color || '#22d3ee').replace('#', '');
+                if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+                  const r = parseInt(hex.slice(0, 2), 16);
+                  const g = parseInt(hex.slice(2, 4), 16);
+                  const b = parseInt(hex.slice(4, 6), 16);
+                  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                }
+                return color || `rgba(34, 211, 238, ${alpha})`;
+              }
+
+              function activeEventCategories(controlsId) {
+                const controls = document.getElementById(controlsId);
+                if (!controls) return new Set(['conference', 'history']);
+                const checked = Array.from(controls.querySelectorAll('.defcoin-event-toggle:checked')).map((input) => input.value);
+                return new Set(checked.length ? checked : []);
+              }
+
+              function overlayDateLabel(value, spanMs) {
+                const date = new Date(value);
+                if (!Number.isFinite(date.getTime())) return '';
+                if (spanMs > 365 * 24 * 60 * 60 * 1000) {
+                  return date.toLocaleDateString([], {year: 'numeric', month: 'short'});
+                }
+                if (spanMs > 14 * 24 * 60 * 60 * 1000) {
+                  return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                }
+                return date.toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric'});
+              }
+
+              function fullDateTimeLabel(value) {
+                const date = new Date(value);
+                if (!Number.isFinite(date.getTime())) return '';
+                return date.toLocaleString([], {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  timeZoneName: 'short'
+                });
+              }
+
+              function fullDateOnlyLabel(value) {
+                const date = new Date(value);
+                if (!Number.isFinite(date.getTime())) return '';
+                return date.toLocaleDateString([], {year: 'numeric', month: 'short', day: 'numeric'});
+              }
+
+              function hasExplicitTime(value) {
+                return /T\d{2}:?\d{2}/.test(String(value || ''));
+              }
+
+              function fullEventPointLabel(event, value) {
+                if (event && event.eventAtText) return event.eventAtText;
+                if (event && event.eventAt && !hasExplicitTime(event.eventAt)) return fullDateOnlyLabel(value);
+                return fullDateTimeLabel(value);
+              }
+
+              function fullEventBoundaryLabel(event, fieldName, value) {
+                if (event && event[fieldName] && !hasExplicitTime(event[fieldName])) return fullDateOnlyLabel(value);
+                if (event && event[fieldName.replace('At', 'Date')]) return fullDateOnlyLabel(value);
+                return fullDateTimeLabel(value);
+              }
+
+              function fitCanvasText(ctx, text, maxWidth) {
+                const source = String(text || '').trim();
+                if (!source || maxWidth <= 8) return '';
+                if (ctx.measureText(source).width <= maxWidth) return source;
+                const ellipsis = '...';
+                let low = 0;
+                let high = source.length;
+                while (low < high) {
+                  const mid = Math.ceil((low + high) / 2);
+                  const candidate = source.slice(0, mid).trimEnd() + ellipsis;
+                  if (ctx.measureText(candidate).width <= maxWidth) low = mid;
+                  else high = mid - 1;
+                }
+                return low > 1 ? source.slice(0, low).trimEnd() + ellipsis : '';
+              }
+
+              function drawLabelPill(ctx, text, centerX, baselineY, maxWidth, color) {
+                const fitted = fitCanvasText(ctx, text, maxWidth);
+                if (!fitted) return null;
+                const metrics = ctx.measureText(fitted);
+                const padX = 4;
+                const width = metrics.width + padX * 2;
+                const height = 13;
+                const x = centerX - width / 2;
+                const y = baselineY - 10;
+                ctx.save();
+                ctx.fillStyle = 'rgba(7, 14, 20, 0.78)';
+                ctx.strokeStyle = colorToRgba(color, 0.55);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 3);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.88)';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText(fitted, centerX, baselineY);
+                ctx.restore();
+                return {x1: x, y1: y, x2: x + width, y2: y + height, text: fitted};
+              }
+
+              function escapeHtml(value) {
+                return String(value || '').replace(/[&<>"']/g, (ch) => ({
+                  '&': '&amp;',
+                  '<': '&lt;',
+                  '>': '&gt;',
+                  '"': '&quot;',
+                  "'": '&#39;'
+                }[ch]));
+              }
+
+              function eventCategoryLabel(event) {
+                if (!event) return 'Event';
+                if (event.category === 'conference') return 'DEF CON event';
+                if (event.subcategory === 'pool') return 'Pool history';
+                if (event.subcategory === 'chain') return 'Chain history';
+                if (event.subcategory === 'site') return 'Site history';
+                if (event.subcategory === 'utility') return 'Utility history';
+                return 'Defcoin history';
+              }
+
+              function eventDateRange(start, end) {
+                const startText = overlayDateLabel(start, 366 * 24 * 60 * 60 * 1000);
+                const endText = overlayDateLabel(end, 366 * 24 * 60 * 60 * 1000);
+                return startText === endText ? startText : `${startText} - ${endText}`;
+              }
+
+              function eventDateSummary(event, start, end) {
+                if (event && event.isPointEvent) return fullEventPointLabel(event, start);
+                const startText = fullEventBoundaryLabel(event, 'startAt', start);
+                const endText = fullEventBoundaryLabel(event, 'endAt', end);
+                return startText === endText ? startText : `${startText} - ${endText}`;
+              }
+
+              function eventTooltipDateLine(event, start, end, partLabel) {
+                if (event && event.isPointEvent) return `Event date: ${fullEventPointLabel(event, start)}`;
+                const startText = fullEventBoundaryLabel(event, 'startAt', start);
+                const endText = fullEventBoundaryLabel(event, 'endAt', end);
+                if (partLabel === 'Start') return `Start: ${startText}`;
+                if (partLabel === 'End') return `End: ${endText}`;
+                return `Start: ${startText}; End: ${endText}`;
+              }
+
+              function visibleTimelineEvents(options) {
+                const activeCategories = activeEventCategories(options && options.controlsId);
+                if (!activeCategories.size) return [];
+                const excludedSubcategories = new Set(Array.isArray(options && options.excludeSubcategories) ? options.excludeSubcategories : []);
+                const minT = Number(options && options.minT);
+                const maxT = Number(options && options.maxT);
+                if (!Number.isFinite(minT) || !Number.isFinite(maxT)) return [];
+                return timelineEvents
+                  .filter((event) => activeCategories.has(event.category))
+                  .filter((event) => !excludedSubcategories.has(event.subcategory))
+                  .map((event) => {
+                    const start = Number(event.startMs);
+                    const end = Number(event.endMs || event.startMs);
+                    if (!Number.isFinite(start) || !Number.isFinite(end) || end < minT || start > maxT) return null;
+                    return {
+                      event,
+                      start,
+                      end,
+                      clippedStart: Math.max(start, minT),
+                      clippedEnd: Math.min(end, maxT)
+                    };
+                  })
+                  .filter(Boolean)
+                  .sort((a, b) => a.start === b.start ? a.end - b.end : a.start - b.start);
+              }
+
+              function limitEventsForCanvas(events, plotWidth) {
+                const maxEvents = Math.max(120, Math.floor(Number(plotWidth || 0) * 2));
+                if (!Array.isArray(events) || events.length <= maxEvents) return events || [];
+                const selected = [];
+                const step = events.length / maxEvents;
+                for (let index = 0; index < maxEvents; index += 1) {
+                  selected.push(events[Math.floor(index * step)]);
+                }
+                return selected;
+              }
+
+              function renderVisibleEventList(options) {
+                const list = document.getElementById(options && options.listId);
+                const count = document.getElementById(options && options.countId);
+                if (!list) return;
+                const events = visibleTimelineEvents(options);
+                if (count) count.textContent = String(events.length);
+                list.textContent = '';
+                if (!events.length) {
+                  const empty = document.createElement('div');
+                  empty.className = 'defcoin-visible-events-empty';
+                  empty.textContent = 'No timeline events are visible in this range.';
+                  list.appendChild(empty);
+                  return;
+                }
+                const fragment = document.createDocumentFragment();
+                events.forEach(({event, start, end}) => {
+                  const row = document.createElement('div');
+                  row.className = 'defcoin-visible-event-row';
+                  const date = document.createElement('div');
+                  date.className = 'defcoin-visible-event-date';
+                  date.textContent = eventDateSummary(event, start, end);
+                  const body = document.createElement('div');
+                  body.className = 'defcoin-visible-event-body';
+                  const title = document.createElement('strong');
+                  title.textContent = event.label || event.name || 'Timeline event';
+                  const meta = document.createElement('span');
+                  meta.className = 'defcoin-visible-event-meta';
+                  meta.textContent = eventCategoryLabel(event);
+                  body.appendChild(title);
+                  body.appendChild(meta);
+                  if (event.note) {
+                    const note = document.createElement('p');
+                    note.textContent = event.note;
+                    body.appendChild(note);
+                  }
+                  if (event.sourceUrl) {
+                    const link = document.createElement('a');
+                    link.href = event.sourceUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = 'Source';
+                    body.appendChild(link);
+                  }
+                  row.appendChild(date);
+                  row.appendChild(body);
+                  fragment.appendChild(row);
+                });
+                list.appendChild(fragment);
+              }
+
+              function eventTooltipHtml(hitbox) {
+                const event = hitbox && hitbox.event ? hitbox.event : {};
+                const title = event.label || event.name || 'Timeline event';
+                const lines = [
+                  `<strong>${escapeHtml(title)}</strong>`,
+                  `<span>${escapeHtml(eventCategoryLabel(event))}</span>`,
+                  `<span>${escapeHtml(eventTooltipDateLine(event, hitbox.start, hitbox.end, hitbox.partLabel || 'Range'))}</span>`
+                ];
+                if (event.note) lines.push(`<span>${escapeHtml(event.note)}</span>`);
+                if (event.sourceUrl) lines.push(`<span>Source: ${escapeHtml(event.sourceUrl)}</span>`);
+                return lines.join('');
+              }
+
+              function findEventHit(hitboxes, x, y) {
+                if (!Array.isArray(hitboxes) || !hitboxes.length) return null;
+                let best = null;
+                let bestScore = Infinity;
+                hitboxes.forEach((hitbox) => {
+                  if (x < hitbox.x1 || x > hitbox.x2 || y < hitbox.y1 || y > hitbox.y2) return;
+                  const cx = Math.max(hitbox.x1, Math.min(hitbox.x2, x));
+                  const cy = Math.max(hitbox.y1, Math.min(hitbox.y2, y));
+                  const dx = cx - x;
+                  const dy = cy - y;
+                  const score = (dx * dx + dy * dy) + (hitbox.priority || 0);
+                  if (score < bestScore) {
+                    best = hitbox;
+                    bestScore = score;
+                  }
+                });
+                return best;
+              }
+
+              function showEventTooltip(tooltip, canvas, hitbox, x, y) {
+                if (!tooltip || !canvas || !hitbox) return false;
+                const rect = canvas.getBoundingClientRect();
+                tooltip.innerHTML = eventTooltipHtml(hitbox);
+                const tooltipWidth = 230;
+                const tooltipHeight = Math.min(132, Math.max(76, tooltip.offsetHeight || 86));
+                const left = Math.max(8, Math.min(rect.width - tooltipWidth - 8, x + 14));
+                const top = Math.max(8, Math.min(rect.height - tooltipHeight - 8, y - 46));
+                tooltip.style.left = `${left}px`;
+                tooltip.style.top = `${top}px`;
+                tooltip.style.display = 'block';
+                return true;
+              }
+
+              function hideTooltip(tooltip) {
+                if (tooltip) tooltip.style.display = 'none';
+              }
+
+              function drawEventBands(options) {
+                if (!options || !options.ctx || !timelineEvents.length) return;
+                const ctx = options.ctx;
+                const minT = Number(options.minT);
+                const maxT = Number(options.maxT);
+                const plotLeft = options.pad.left;
+                const plotRight = options.pad.left + options.plotWidth;
+                const plotTop = options.pad.top;
+                const plotHeight = options.plotHeight;
+                const spanMs = Math.max(1, maxT - minT);
+                const laneHeight = 16;
+                const maxLanes = Math.max(2, Math.min(6, Math.floor(plotHeight / 42)));
+                const laneEnds = Array(maxLanes).fill(plotLeft - 999);
+                const eventHitboxes = Array.isArray(options.eventHitboxes) ? options.eventHitboxes : null;
+                const events = limitEventsForCanvas(visibleTimelineEvents(options), options.plotWidth)
+                  .map(({event, start, end, clippedStart, clippedEnd}) => {
+                    const x1 = Math.max(plotLeft, Math.min(plotRight, options.xFor(clippedStart)));
+                    const x2 = Math.max(plotLeft, Math.min(plotRight, options.xFor(clippedEnd)));
+                    return {event, start, end, x1, x2, width: Math.max(2, x2 - x1)};
+                  })
+                  .sort((a, b) => a.x1 === b.x1 ? b.width - a.width : a.x1 - b.x1);
+                ctx.save();
+                ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
+                events.forEach(({event, start, end, x1, x2, width}) => {
+                  const color = event.color || (event.category === 'conference' ? '#d946ef' : '#22d3ee');
+                  let lane = laneEnds.findIndex((right) => right < x1 - 18);
+                  if (lane < 0) lane = laneEnds.indexOf(Math.min.apply(null, laneEnds));
+                  laneEnds[lane] = Math.max(laneEnds[lane], x2 + 42);
+                  const y = plotTop + 12 + lane * laneHeight;
+                  ctx.strokeStyle = colorToRgba(color, event.category === 'conference' ? 0.58 : 0.48);
+                  ctx.lineWidth = event.category === 'conference' ? 1.2 : 1;
+                  ctx.beginPath();
+                  ctx.moveTo(x1 + 0.5, plotTop);
+                  ctx.lineTo(x1 + 0.5, plotTop + plotHeight);
+                  ctx.stroke();
+                  if (eventHitboxes) {
+                    eventHitboxes.push({
+                      event,
+                      start,
+                      end,
+                      partLabel: 'Start',
+                      x1: x1 - 7,
+                      x2: x1 + 7,
+                      y1: plotTop,
+                      y2: plotTop + plotHeight,
+                      priority: 0
+                    });
+                  }
+                  if (width > 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(x2 - 0.5, plotTop);
+                    ctx.lineTo(x2 - 0.5, plotTop + plotHeight);
+                    ctx.stroke();
+                    if (eventHitboxes) {
+                      eventHitboxes.push({
+                        event,
+                        start,
+                        end,
+                        partLabel: 'End',
+                        x1: x2 - 7,
+                        x2: x2 + 7,
+                        y1: plotTop,
+                        y2: plotTop + plotHeight,
+                        priority: 0
+                      });
+                    }
+                  }
+                  ctx.strokeStyle = colorToRgba(color, event.category === 'conference' ? 0.92 : 0.82);
+                  ctx.lineWidth = event.category === 'conference' ? 2 : 1.5;
+                  ctx.beginPath();
+                  ctx.moveTo(x1, y);
+                  ctx.lineTo(x2, y);
+                  ctx.stroke();
+                  if (eventHitboxes) {
+                    eventHitboxes.push({
+                      event,
+                      start,
+                      end,
+                      partLabel: 'Range',
+                      x1: Math.min(x1, x2),
+                      x2: Math.max(x1, x2),
+                      y1: y - 7,
+                      y2: y + 7,
+                      priority: 4
+                    });
+                  }
+                  ctx.fillStyle = colorToRgba(color, 0.95);
+                  ctx.beginPath();
+                  ctx.arc(x1, y, 2.2, 0, Math.PI * 2);
+                  ctx.fill();
+                  if (width > 8) {
+                    ctx.beginPath();
+                    ctx.arc(x2, y, 2.2, 0, Math.PI * 2);
+                    ctx.fill();
+                  }
+                  if (width > 54) {
+                    const labelBox = drawLabelPill(ctx, event.label || event.name || event.category, x1 + width / 2, y - 4, Math.min(width - 10, 210), color);
+                    if (eventHitboxes && labelBox) {
+                      eventHitboxes.push(Object.assign({}, labelBox, {
+                        event,
+                        start,
+                        end,
+                        partLabel: 'Event',
+                        priority: -8
+                      }));
+                    }
+                  }
+                  if (width > 112) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(overlayDateLabel(start, spanMs), Math.min(x1 + 3, plotRight - 70), y + 4);
+                    ctx.textAlign = 'right';
+                    ctx.fillText(overlayDateLabel(end, spanMs), Math.max(x2 - 3, plotLeft + 70), y + 4);
+                  }
+                });
+                ctx.restore();
+              }
+
+              function installEventControls(controlsId, onChange) {
+                const controls = document.getElementById(controlsId);
+                if (!controls) return;
+                controls.querySelectorAll('.defcoin-event-toggle').forEach((input) => {
+                  input.addEventListener('change', onChange);
+                });
+              }
+
+              function visibleNetworkSamples(samples) {
+                return (samples || [])
+                  .filter((sample) => (sample.sourceKind === 'network' || sample.sourceId === 'network' || sample.sourceId === 'defcoinstats-network') && Number(sample.t) > 0 && Number(sample.hashrate) > 0)
+                  .map((sample) => ({t: Number(sample.t), hashrate: Number(sample.hashrate)}))
+                  .sort((a, b) => a.t - b.t);
+              }
+
+              function hashrateHours(samples, startMs, endMs) {
+                const points = visibleNetworkSamples(samples);
+                const start = Number(startMs);
+                const end = Number(endMs);
+                const selectedHours = Math.max(0, (end - start) / 3600000);
+                if (!points.length || selectedHours <= 0) {
+                  return {rateHours: 0, avgHashrate: 0, selectedHours, coverageHours: 0, sampleCount: points.length};
+                }
+                if (points.length === 1) {
+                  return {rateHours: 0, avgHashrate: points[0].hashrate, selectedHours, coverageHours: 0, sampleCount: points.length};
+                }
+                let total = 0;
+                let coverageHours = 0;
+                for (let i = 1; i < points.length; i += 1) {
+                  const a = points[i - 1];
+                  const b = points[i];
+                  const segStart = Math.max(start, a.t);
+                  const segEnd = Math.min(end, b.t);
+                  if (segEnd > segStart) {
+                    const segmentHours = (segEnd - segStart) / 3600000;
+                    total += ((a.hashrate + b.hashrate) / 2) * segmentHours;
+                    coverageHours += segmentHours;
+                  }
+                }
+                return {
+                  rateHours: total,
+                  avgHashrate: coverageHours > 0 ? total / coverageHours : 0,
+                  selectedHours,
+                  coverageHours,
+                  sampleCount: points.length
+                };
+              }
+
+              function readNumber(input, fallback) {
+                const numeric = Number(input && input.value);
+                return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
+              }
+
+              function formatCurrency(value) {
+                if (!Number.isFinite(value) || value < 0) return '-';
+                if (value >= 1000000) return `$${value.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+                if (value >= 1000) return `$${value.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+                return `$${value.toFixed(value >= 10 ? 2 : 4)}`;
+              }
+
+              function updateEnergyEstimator(options) {
+                const panel = document.getElementById(options && options.panelId);
+                if (!panel) return;
+                const price = readNumber(panel.querySelector('.defcoin-energy-price'), 0.15);
+                const summary = panel.querySelector('.defcoin-energy-summary');
+                const metrics = hashrateHours(options.samples, options.startMs, options.endMs);
+                const formatHashrate = options.formatHashrate || ((value) => `${Math.round(value)} H/s`);
+                const durationText = options.durationText || ((ms) => `${Math.round(ms / 3600000)} hr`);
+                const selectedMs = Number(options.endMs) - Number(options.startMs);
+                const coverageMs = metrics.coverageHours * 3600000;
+                if (summary) {
+                  summary.textContent = metrics.sampleCount
+                    ? `Visible network average: ${formatHashrate(metrics.avgHashrate)} | Sampled coverage: ${durationText(coverageMs)} of ${durationText(selectedMs)} selected | Electricity: $${price.toFixed(2)}/kWh`
+                    : `No network hashrate samples are available inside this visible range. Electricity: $${price.toFixed(2)}/kWh`;
+                }
+                panel.querySelectorAll('tbody tr').forEach((row) => {
+                  const minerHashrate = readNumber(row.querySelector('.defcoin-device-hashrate'), 0);
+                  const watts = readNumber(row.querySelector('.defcoin-device-watts'), 0);
+                  const output = row.querySelector('.defcoin-device-cost');
+                  if (!output || minerHashrate <= 0 || watts <= 0 || metrics.rateHours <= 0) {
+                    if (output) output.textContent = '-';
+                    return;
+                  }
+                  const deviceHours = metrics.rateHours / minerHashrate;
+                  const kwh = deviceHours * watts / 1000;
+                  output.textContent = `${formatCurrency(kwh * price)} (${kwh.toLocaleString(undefined, {maximumFractionDigits: 2})} kWh)`;
+                });
+              }
+
+              function installEnergyEstimator(panelId, onChange) {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                panel.querySelectorAll('input').forEach((input) => {
+                  input.addEventListener('input', onChange);
+                  input.addEventListener('change', onChange);
+                });
+              }
+
+              window.DefcoinTimelineTools = {
+                drawEventBands,
+                findEventHit,
+                hideTooltip,
+                installEventControls,
+                installEnergyEstimator,
+                renderVisibleEventList,
+                showEventTooltip,
+                updateEnergyEstimator,
+                visibleTimelineEvents
+              };
+            })();
+          script.
+            (function() {
+              const dataEl = document.getElementById('defcoin-hashrate-history-data');
+              const canvas = document.getElementById('defcoin-hashrate-chart');
+              const empty = document.getElementById('defcoin-hashrate-empty');
+              const eventTooltip = document.getElementById('defcoin-hashrate-event-tooltip');
+              const rangeLabel = document.getElementById('defcoin-hashrate-range-label');
+              const coverageNote = document.getElementById('defcoin-hashrate-coverage-note');
+              const windowControl = document.getElementById('defcoin-hashrate-window');
+              const selection = windowControl ? windowControl.querySelector('.defcoin-hashrate-window-selection') : null;
+              const startHandle = windowControl ? windowControl.querySelector('.defcoin-hashrate-window-handle-start') : null;
+              const endHandle = windowControl ? windowControl.querySelector('.defcoin-hashrate-window-handle-end') : null;
+              const presetButtons = Array.from(document.querySelectorAll('.defcoin-hashrate-preset'));
+              const legend = document.getElementById('defcoin-hashrate-legend');
+              const timelineTools = window.DefcoinTimelineTools || null;
+              if (!dataEl || !canvas || !windowControl || !selection || !startHandle || !endHandle || !rangeLabel || !legend) return;
+
+              let chartData = {sources: [], samples: []};
+              try {
+                chartData = JSON.parse(dataEl.textContent || '{}');
+              } catch (err) {
+                chartData = {sources: [], samples: []};
+              }
+
+              const ranges = {
+                '1h': {label: '1H', ms: 60 * 60 * 1000},
+                '2h': {label: '2H', ms: 2 * 60 * 60 * 1000},
+                '6h': {label: '6H', ms: 6 * 60 * 60 * 1000},
+                '12h': {label: '12H', ms: 12 * 60 * 60 * 1000},
+                '24h': {label: '24H', ms: 24 * 60 * 60 * 1000},
+                '2d': {label: '2D', ms: 2 * 24 * 60 * 60 * 1000},
+                '7d': {label: '7D', ms: 7 * 24 * 60 * 60 * 1000},
+                month: {label: 'Month', ms: 30 * 24 * 60 * 60 * 1000},
+                year: {label: 'Year', ms: 365 * 24 * 60 * 60 * 1000},
+                all: {label: 'All', ms: Infinity}
+              };
+              const allSamples = (chartData.samples || [])
+                .filter((sample) => Number(sample.t) > 0 && Number(sample.hashrate) > 0)
+                .sort((a, b) => Number(a.t) - Number(b.t));
+              const rawMinT = allSamples.length ? Number(allSamples[0].t) : Date.now() - ranges['24h'].ms;
+              const rawMaxT = allSamples.length ? Number(allSamples[allSamples.length - 1].t) : Date.now();
+              const firstLiveSampleT = allSamples.length ? Number(allSamples[0].t) : 0;
+              const dataMaxT = rawMinT === rawMaxT ? rawMaxT + 60 * 1000 : rawMaxT;
+              const dataMinT = rawMinT === rawMaxT
+                ? rawMinT - ranges['24h'].ms
+                : Math.min(rawMinT, dataMaxT - ranges.year.ms);
+              const minSpan = Math.min(0.02, Math.max(0.000001, (15 * 60 * 1000) / Math.max(1, dataMaxT - dataMinT)));
+              let windowStart = 0;
+              let windowEnd = 1;
+              let activePreset = '24h';
+              let drawPending = false;
+              let liveEventHitboxes = [];
+              let liveHoverPending = false;
+
+              function formatHashrate(value) {
+                const numeric = Number(value || 0);
+                if (!Number.isFinite(numeric) || numeric <= 0) return '-';
+                const units = ['H/s', 'KH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s'];
+                let rate = numeric;
+                let unitIndex = 0;
+                while (rate >= 1000 && unitIndex < units.length - 1) {
+                  rate /= 1000;
+                  unitIndex += 1;
+                }
+                return `${rate.toFixed(rate >= 100 ? 0 : 2)} ${units[unitIndex]}`;
+              }
+
+              function sourceOrder(source) {
+                if (source.id === 'network') return 0;
+                if (source.id === 'p2pool-total') return 1;
+                if (source.id === 'chain-p2pool-confirmed') return 1.25;
+                if (source.id === 'chain-p2pool-likely') return 1.5;
+                if (source.id === 'dc903') return 2;
+                if (source.id === 'defcoin-io') return 3;
+                if (source.id === 'defcoin-host-usb') return 4;
+                return 10;
+              }
+
+              function sourceLabel(source) {
+                if (source.kind === 'network') return 'Network';
+                if (source.id === 'chain-p2pool-confirmed') return 'Blockchain exact';
+                if (source.id === 'chain-p2pool-likely') return 'Blockchain';
+                if (source.kind === 'p2pool') return 'P2Pool total';
+                return 'Endpoint';
+              }
+
+              function timeForPosition(pos) {
+                return dataMinT + Math.max(0, Math.min(1, pos)) * (dataMaxT - dataMinT);
+              }
+
+              function positionForTime(time) {
+                if (dataMaxT <= dataMinT) return 0;
+                return Math.max(0, Math.min(1, (time - dataMinT) / (dataMaxT - dataMinT)));
+              }
+
+              function minimumWindowSpan() {
+                const width = windowControl ? windowControl.getBoundingClientRect().width : 0;
+                const visualSpan = width > 0 ? 18 / width : 0;
+                return Math.min(1, Math.max(minSpan, visualSpan));
+              }
+
+              function clampWindow(start, end) {
+                start = Number.isFinite(start) ? start : 0;
+                end = Number.isFinite(end) ? end : 1;
+                const minWindowSpan = minimumWindowSpan();
+                let span = Math.max(minWindowSpan, end - start);
+                if (span >= 1) {
+                  windowStart = 0;
+                  windowEnd = 1;
+                  return;
+                }
+                start = Math.max(0, Math.min(1 - span, start));
+                windowStart = start;
+                windowEnd = start + span;
+              }
+
+              function updatePresetState(preset) {
+                activePreset = preset || 'custom';
+                presetButtons.forEach((button) => {
+                  button.classList.toggle('active', button.dataset.range === activePreset);
+                });
+              }
+
+              function bestPresetForSpan(spanMs) {
+                if (!Number.isFinite(spanMs) || spanMs <= 0) return 'custom';
+                const fullSpan = Math.max(1, rawMaxT - rawMinT);
+                if (spanMs >= fullSpan * 0.94) return 'all';
+                let bestPreset = 'custom';
+                let bestScore = Infinity;
+                Object.keys(ranges).forEach((key) => {
+                  const config = ranges[key];
+                  if (!Number.isFinite(config.ms)) return;
+                  const score = Math.abs(Math.log(spanMs / config.ms));
+                  if (score < bestScore) {
+                    bestPreset = key;
+                    bestScore = score;
+                  }
+                });
+                return bestScore <= Math.log(1.35) ? bestPreset : 'custom';
+              }
+
+              function syncPresetStateFromWindow() {
+                updatePresetState(bestPresetForSpan(timeForPosition(windowEnd) - timeForPosition(windowStart)));
+              }
+
+              function centeredRangeForDuration(durationMs, minTime, maxTime) {
+                const domainSpan = Math.max(1, maxTime - minTime);
+                const width = Math.min(durationMs, domainSpan);
+                let center = (timeForPosition(windowStart) + timeForPosition(windowEnd)) / 2;
+                if (!Number.isFinite(center)) center = maxTime - width / 2;
+                center = Math.max(minTime + width / 2, Math.min(maxTime - width / 2, center));
+                return {
+                  start: center - width / 2,
+                  end: center + width / 2
+                };
+              }
+
+              function setPreset(preset, preserveCenter) {
+                const config = ranges[preset] || ranges['24h'];
+                if (preset === 'all' || !Number.isFinite(config.ms)) {
+                  clampWindow(positionForTime(rawMinT), positionForTime(rawMaxT));
+                } else {
+                  if (preserveCenter === false) {
+                    const endTime = dataMaxT;
+                    const startTime = Math.max(dataMinT, endTime - config.ms);
+                    clampWindow(positionForTime(startTime), positionForTime(endTime));
+                  } else {
+                    const centeredRange = centeredRangeForDuration(config.ms, dataMinT, dataMaxT);
+                    clampWindow(positionForTime(centeredRange.start), positionForTime(centeredRange.end));
+                  }
+                }
+                updatePresetState(preset);
+                scheduleDraw();
+              }
+
+              function durationText(ms) {
+                const seconds = Math.max(0, Math.round(ms / 1000));
+                const minutes = Math.floor(seconds / 60);
+                const remainder = seconds % 60;
+                if (minutes < 60) return remainder === 0 ? `${minutes} min` : `${minutes} min ${remainder} sec`;
+                const hours = Math.floor(minutes / 60);
+                const minuteRemainder = minutes % 60;
+                if (hours >= 24) {
+                  const days = Math.floor(hours / 24);
+                  const hourRemainder = hours % 24;
+                  const dayText = days === 1 ? '1 day' : `${days} days`;
+                  return hourRemainder === 0 ? dayText : `${dayText} ${hourRemainder} hr`;
+                }
+                return minuteRemainder === 0 ? `${hours} hr` : `${hours} hr ${minuteRemainder} min`;
+              }
+
+              function formatDateLabel(value) {
+                return new Date(value).toLocaleString([], {
+                  month: 'numeric',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit'
+                });
+              }
+
+              function updateRangeText() {
+                const startTime = timeForPosition(windowStart);
+                const endTime = timeForPosition(windowEnd);
+                const rangeSamples = allSamples.filter((sample) => Number(sample.t) >= startTime && Number(sample.t) <= endTime);
+                const sampledStart = rangeSamples.length ? Math.min.apply(null, rangeSamples.map((sample) => Number(sample.t))) : 0;
+                const sampledEnd = rangeSamples.length ? Math.max.apply(null, rangeSamples.map((sample) => Number(sample.t))) : 0;
+                const sampledSpan = sampledStart && sampledEnd ? sampledEnd - sampledStart : 0;
+                const selectedSpan = endTime - startTime;
+                const sampledText = rangeSamples.length ? `${durationText(sampledSpan)} sampled` : 'no samples yet';
+                rangeLabel.textContent = `${formatDateLabel(startTime)} - ${formatDateLabel(endTime)} | ${durationText(selectedSpan)} selected | ${sampledText}`;
+                if (coverageNote) {
+                  const incomplete = activePreset !== 'all' && Number.isFinite(selectedSpan) && selectedSpan > 0 && sampledSpan < selectedSpan * 0.85;
+                  coverageNote.style.display = incomplete ? 'block' : 'none';
+                  if (incomplete && firstLiveSampleT && startTime < firstLiveSampleT) {
+                    coverageNote.textContent = `Live API samples begin ${formatDateLabel(firstLiveSampleT)}; the selected ${ranges[activePreset] ? ranges[activePreset].label.toLowerCase() : 'range'} currently has ${sampledText}.`;
+                  } else {
+                    coverageNote.textContent = incomplete
+                      ? `Live API sampling is still filling this range; the selected ${ranges[activePreset] ? ranges[activePreset].label.toLowerCase() : 'range'} currently has ${sampledText}.`
+                      : '';
+                  }
+                }
+              }
+
+              function updateWindowControl() {
+                const startPercent = windowStart * 100;
+                const endPercent = windowEnd * 100;
+                selection.style.left = `${startPercent}%`;
+                selection.style.width = `${Math.max(0, endPercent - startPercent)}%`;
+                startHandle.style.left = `${startPercent}%`;
+                endHandle.style.left = `${endPercent}%`;
+                updateRangeText();
+              }
+
+              function groupedSources(samples) {
+                const sourceById = new Map((chartData.sources || []).map((source) => [source.id, source]));
+                samples.forEach((sample) => {
+                  if (!sourceById.has(sample.sourceId)) {
+                    sourceById.set(sample.sourceId, {
+                      id: sample.sourceId,
+                      name: sample.sourceName || sample.sourceId,
+                      kind: sample.sourceKind || 'pool',
+                      color: '#d8dee9'
+                    });
+                  }
+                });
+                return Array.from(sourceById.values()).sort((a, b) => {
+                  const diff = sourceOrder(a) - sourceOrder(b);
+                  return diff !== 0 ? diff : String(a.name).localeCompare(String(b.name));
+                });
+              }
+
+              function scheduleDraw() {
+                if (drawPending) return;
+                drawPending = true;
+                requestAnimationFrame(() => {
+                  drawPending = false;
+                  draw();
+                });
+              }
+
+              function draw() {
+                updateWindowControl();
+                const windowStartMs = timeForPosition(windowStart);
+                const windowEndMs = timeForPosition(windowEnd);
+                const samples = allSamples
+                  .filter((sample) => Number(sample.t) >= windowStartMs && Number(sample.t) <= windowEndMs)
+                  .sort((a, b) => Number(a.t) - Number(b.t));
+
+                if (!samples.length) {
+                  const eventOptions = {
+                    listId: 'defcoin-live-event-list',
+                    countId: 'defcoin-live-event-count',
+                    minT: windowStartMs,
+                    maxT: windowEndMs,
+                    controlsId: 'defcoin-live-event-controls',
+                    excludeSubcategories: ['pool']
+                  };
+                  const visibleEvents = timelineTools ? timelineTools.visibleTimelineEvents(eventOptions) : [];
+                  legend.innerHTML = '';
+                  liveEventHitboxes = [];
+                  if (timelineTools) timelineTools.hideTooltip(eventTooltip);
+                  if (timelineTools) timelineTools.renderVisibleEventList(eventOptions);
+
+                  if (visibleEvents.length && timelineTools) {
+                    empty.style.display = 'none';
+                    const rect = canvas.getBoundingClientRect();
+                    const dpr = window.devicePixelRatio || 1;
+                    const width = Math.max(640, rect.width || canvas.clientWidth || 900);
+                    const height = Math.max(430, rect.height || canvas.clientHeight || 460);
+                    canvas.width = width * dpr;
+                    canvas.height = height * dpr;
+                    const ctx = canvas.getContext('2d');
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    ctx.clearRect(0, 0, width, height);
+                    const pad = {left: 96, right: 36, top: 38, bottom: 58};
+                    const plotWidth = width - pad.left - pad.right;
+                    const plotHeight = height - pad.top - pad.bottom;
+                    function xFor(t) {
+                      if (windowEndMs === windowStartMs) return pad.left + plotWidth / 2;
+                      return pad.left + ((Number(t) - windowStartMs) / (windowEndMs - windowStartMs)) * plotWidth;
+                    }
+                    timelineTools.drawEventBands(Object.assign({}, eventOptions, {
+                      ctx,
+                      pad,
+                      plotWidth,
+                      plotHeight,
+                      xFor,
+                      eventHitboxes: liveEventHitboxes
+                    }));
+                    ctx.fillStyle = 'rgba(255,255,255,0.64)';
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i <= 4; i++) {
+                      const y = pad.top + plotHeight - (i / 4) * plotHeight;
+                      ctx.beginPath();
+                      ctx.moveTo(pad.left, y);
+                      ctx.lineTo(pad.left + plotWidth, y);
+                      ctx.stroke();
+                      ctx.fillText(i === 0 ? '-' : '', pad.left - 12, y);
+                    }
+                    ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+                    ctx.beginPath();
+                    ctx.moveTo(pad.left, pad.top);
+                    ctx.lineTo(pad.left, pad.top + plotHeight);
+                    ctx.lineTo(pad.left + plotWidth, pad.top + plotHeight);
+                    ctx.stroke();
+                    ctx.fillStyle = 'rgba(255,255,255,0.68)';
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(formatDateLabel(windowStartMs), pad.left, pad.top + plotHeight + 16);
+                    ctx.textAlign = 'right';
+                    ctx.fillText(formatDateLabel(windowEndMs), pad.left + plotWidth, pad.top + plotHeight + 16);
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = 'rgba(255,255,255,0.50)';
+                    ctx.fillText('No hashrate samples in this range; timeline events are shown.', pad.left + plotWidth / 2, pad.top + plotHeight - 24);
+                    timelineTools.updateEnergyEstimator({
+                      panelId: 'defcoin-live-energy-panel',
+                      samples,
+                      startMs: windowStartMs,
+                      endMs: windowEndMs,
+                      formatHashrate,
+                      durationText
+                    });
+                    return;
+                  }
+
+                  empty.style.display = 'flex';
+                  const ctx = canvas.getContext('2d');
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  if (timelineTools) {
+                    timelineTools.updateEnergyEstimator({
+                      panelId: 'defcoin-live-energy-panel',
+                      samples,
+                      startMs: windowStartMs,
+                      endMs: windowEndMs,
+                      formatHashrate,
+                      durationText
+                    });
+                  }
+                  return;
+                }
+                empty.style.display = 'none';
+
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                const width = Math.max(640, rect.width || canvas.clientWidth || 900);
+                const height = Math.max(430, rect.height || canvas.clientHeight || 460);
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, width, height);
+
+                const minT = windowStartMs;
+                const maxT = windowEndMs;
+                const maxLog = Math.max(1, Math.ceil(Math.max.apply(null, samples.map((sample) => Math.log10(Number(sample.hashrate) + 1)))));
+                ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+                const axisLabels = [];
+                for (let i = 0; i <= 4; i++) {
+                  const ratio = i / 4;
+                  axisLabels.push(formatHashrate(Math.pow(10, ratio * maxLog) - 1));
+                }
+                const axisLabelWidth = Math.max.apply(null, axisLabels.map((label) => ctx.measureText(label).width));
+                const pad = {
+                  left: Math.ceil(Math.max(96, axisLabelWidth + 22)),
+                  right: 36,
+                  top: 38,
+                  bottom: 58
+                };
+                const plotWidth = width - pad.left - pad.right;
+                const plotHeight = height - pad.top - pad.bottom;
+                liveEventHitboxes = [];
+
+                function xFor(t) {
+                  if (maxT === minT) return pad.left + plotWidth / 2;
+                  return pad.left + ((Number(t) - minT) / (maxT - minT)) * plotWidth;
+                }
+                function yFor(hps) {
+                  const log = Math.log10(Number(hps) + 1);
+                  return pad.top + plotHeight - (log / maxLog) * plotHeight;
+                }
+
+                if (timelineTools) {
+                  timelineTools.drawEventBands({
+                    ctx,
+                    minT,
+                    maxT,
+                    pad,
+                    plotWidth,
+                    plotHeight,
+                    xFor,
+                    controlsId: 'defcoin-live-event-controls',
+                    eventHitboxes: liveEventHitboxes,
+                    excludeSubcategories: ['pool']
+                  });
+                  timelineTools.renderVisibleEventList({
+                    listId: 'defcoin-live-event-list',
+                    countId: 'defcoin-live-event-count',
+                    minT,
+                    maxT,
+                    controlsId: 'defcoin-live-event-controls',
+                    excludeSubcategories: ['pool']
+                  });
+                }
+
+                ctx.fillStyle = 'rgba(255,255,255,0.70)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                  const ratio = i / 4;
+                  const y = pad.top + plotHeight - ratio * plotHeight;
+                  ctx.beginPath();
+                  ctx.moveTo(pad.left, y);
+                  ctx.lineTo(width - pad.right, y);
+                  ctx.stroke();
+                  ctx.fillText(axisLabels[i], pad.left - 12, y);
+                }
+
+                const sources = groupedSources(samples);
+                sources.forEach((source) => {
+                  const points = samples.filter((sample) => sample.sourceId === source.id);
+                  if (!points.length) return;
+                  const isP2poolTotal = source.id === 'p2pool-total';
+                  const strokeColor = isP2poolTotal ? 'rgba(190, 196, 205, 0.96)' : (source.color || '#d8dee9');
+                  ctx.strokeStyle = strokeColor;
+                  ctx.fillStyle = strokeColor;
+                  ctx.lineWidth = source.id === 'network' ? 2.5 : (isP2poolTotal ? 1.2 : 1.9);
+                  ctx.globalAlpha = isP2poolTotal ? 0.96 : 1;
+                  if (isP2poolTotal) ctx.setLineDash([3, 3]);
+                  else ctx.setLineDash([]);
+                  ctx.beginPath();
+                  points.forEach((point, index) => {
+                    const x = xFor(point.t);
+                    const y = yFor(point.hashrate);
+                    if (index === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                  });
+                  ctx.stroke();
+                  ctx.setLineDash([]);
+                  ctx.globalAlpha = isP2poolTotal ? 0.7 : 1;
+                  points.forEach((point) => {
+                    const x = xFor(point.t);
+                    const y = yFor(point.hashrate);
+                    ctx.beginPath();
+                    ctx.arc(x, y, source.id === 'network' ? 3 : 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                  });
+                  ctx.globalAlpha = 1;
+                });
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+                ctx.beginPath();
+                ctx.moveTo(pad.left, pad.top);
+                ctx.lineTo(pad.left, pad.top + plotHeight);
+                ctx.lineTo(width - pad.right, pad.top + plotHeight);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255,255,255,0.68)';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(formatDateLabel(minT), pad.left, height - 34);
+                ctx.textAlign = 'right';
+                ctx.fillText(formatDateLabel(maxT), width - pad.right, height - 34);
+                ctx.textAlign = 'left';
+                ctx.fillText('Log scale', pad.left, 12);
+
+                legend.innerHTML = '';
+                sources.forEach((source) => {
+                  const latest = samples.filter((sample) => sample.sourceId === source.id).pop();
+                  if (!latest) return;
+                  const item = document.createElement('span');
+                  item.className = source.id === 'p2pool-total' ? 'defcoin-hashrate-legend-item is-muted' : 'defcoin-hashrate-legend-item';
+                  const swatch = document.createElement('span');
+                  swatch.className = 'defcoin-hashrate-swatch';
+                  swatch.style.background = source.color || '#d8dee9';
+                  const name = document.createElement('strong');
+                  name.textContent = `${sourceLabel(source)}: ${source.name}`;
+                  const value = document.createTextNode(` ${formatHashrate(latest.hashrate)}`);
+                  item.appendChild(swatch);
+                  item.appendChild(name);
+                  item.appendChild(value);
+                  legend.appendChild(item);
+                });
+                if (timelineTools) {
+                  timelineTools.updateEnergyEstimator({
+                    panelId: 'defcoin-live-energy-panel',
+                    samples,
+                    startMs: windowStartMs,
+                    endMs: windowEndMs,
+                    formatHashrate,
+                    durationText
+                  });
+                }
+              }
+
+              function updateLiveEventTooltip(event) {
+                if (!timelineTools || !eventTooltip) return;
+                const rect = canvas.getBoundingClientRect();
+                const mx = event.clientX - rect.left;
+                const my = event.clientY - rect.top;
+                const hit = timelineTools.findEventHit(liveEventHitboxes, mx, my);
+                if (!hit) {
+                  timelineTools.hideTooltip(eventTooltip);
+                  return;
+                }
+                timelineTools.showEventTooltip(eventTooltip, canvas, hit, mx, my);
+              }
+
+              function scheduleLiveEventTooltip(event) {
+                if (!eventTooltip) return;
+                canvas._defcoinLastEventHover = {clientX: event.clientX, clientY: event.clientY};
+                if (liveHoverPending) return;
+                liveHoverPending = true;
+                requestAnimationFrame(() => {
+                  liveHoverPending = false;
+                  updateLiveEventTooltip(canvas._defcoinLastEventHover);
+                });
+              }
+
+              function normalizedMousePosition(event) {
+                const rect = windowControl.getBoundingClientRect();
+                return Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width)));
+              }
+
+              function installWindowDrag() {
+                let dragMode = 'none';
+                let pressStart = 0;
+                let pressEnd = 1;
+                let pressX = 0;
+                windowControl.addEventListener('pointerdown', (event) => {
+                  const pos = normalizedMousePosition(event);
+                  const controlRect = windowControl.getBoundingClientRect();
+                  const edgeThreshold = Math.max(0.018, 16 / Math.max(1, controlRect.width));
+                  pressStart = windowStart;
+                  pressEnd = windowEnd;
+                  pressX = pos;
+                  const insideSelection = pos >= pressStart && pos <= pressEnd;
+                  const selectionPixels = Math.abs(pressEnd - pressStart) * Math.max(1, controlRect.width);
+                  const pointerPx = pos * Math.max(1, controlRect.width);
+                  const startPx = pressStart * Math.max(1, controlRect.width);
+                  const endPx = pressEnd * Math.max(1, controlRect.width);
+                  const resizeBandPx = Math.min(18, Math.max(8, selectionPixels * 0.22));
+                  windowControl.setPointerCapture(event.pointerId);
+                  if (insideSelection) {
+                    if (selectionPixels <= 72) {
+                      dragMode = 'move';
+                    } else if (pointerPx - startPx <= resizeBandPx) {
+                      dragMode = 'left';
+                    } else if (endPx - pointerPx <= resizeBandPx) {
+                      dragMode = 'right';
+                    } else {
+                      dragMode = 'move';
+                    }
+                  } else if (Math.abs(pos - windowStart) < edgeThreshold) {
+                    dragMode = 'left';
+                  } else if (Math.abs(pos - windowEnd) < edgeThreshold) {
+                    dragMode = 'right';
+                  } else {
+                    const span = windowEnd - windowStart;
+                    clampWindow(pos - span / 2, pos + span / 2);
+                    dragMode = 'move';
+                    pressStart = windowStart;
+                    pressEnd = windowEnd;
+                    pressX = pos;
+                    syncPresetStateFromWindow();
+                    scheduleDraw();
+                  }
+                  event.preventDefault();
+                });
+                windowControl.addEventListener('pointermove', (event) => {
+                  if (dragMode === 'none') return;
+                  const pos = normalizedMousePosition(event);
+                  const minWindowSpan = minimumWindowSpan();
+                  if (dragMode === 'left') {
+                    clampWindow(Math.min(pos, pressEnd - minWindowSpan), pressEnd);
+                  } else if (dragMode === 'right') {
+                    clampWindow(pressStart, Math.max(pos, pressStart + minWindowSpan));
+                  } else if (dragMode === 'move') {
+                    const delta = pos - pressX;
+                    clampWindow(pressStart + delta, pressEnd + delta);
+                  }
+                  syncPresetStateFromWindow();
+                  scheduleDraw();
+                });
+                windowControl.addEventListener('pointerup', (event) => {
+                  if (windowControl.hasPointerCapture(event.pointerId)) {
+                    windowControl.releasePointerCapture(event.pointerId);
+                  }
+                  dragMode = 'none';
+                });
+                windowControl.addEventListener('pointercancel', () => {
+                  dragMode = 'none';
+                });
+                windowControl.addEventListener('keydown', (event) => {
+                  const span = windowEnd - windowStart;
+                  const moveStep = event.shiftKey ? 0.08 : 0.02;
+                  let handled = true;
+                  if (event.key === 'ArrowLeft') {
+                    clampWindow(windowStart - moveStep, windowEnd - moveStep);
+                  } else if (event.key === 'ArrowRight') {
+                    clampWindow(windowStart + moveStep, windowEnd + moveStep);
+                  } else if (event.key === 'ArrowUp' || event.key === '+') {
+                    const midpoint = (windowStart + windowEnd) / 2;
+                    const nextSpan = Math.max(minimumWindowSpan(), span * 0.86);
+                    clampWindow(midpoint - nextSpan / 2, midpoint + nextSpan / 2);
+                  } else if (event.key === 'ArrowDown' || event.key === '-') {
+                    const midpoint = (windowStart + windowEnd) / 2;
+                    const nextSpan = Math.min(1, span * 1.18);
+                    clampWindow(midpoint - nextSpan / 2, midpoint + nextSpan / 2);
+                  } else {
+                    handled = false;
+                  }
+                  if (handled) {
+                    event.preventDefault();
+                    syncPresetStateFromWindow();
+                    scheduleDraw();
+                  }
+                });
+              }
+
+              presetButtons.forEach((button) => {
+                button.addEventListener('click', () => setPreset(button.dataset.range || '24h'));
+              });
+              if (timelineTools) {
+                timelineTools.installEventControls('defcoin-live-event-controls', scheduleDraw);
+                timelineTools.installEnergyEstimator('defcoin-live-energy-panel', scheduleDraw);
+              }
+              if (eventTooltip) {
+                canvas.addEventListener('mousemove', scheduleLiveEventTooltip);
+                canvas.addEventListener('mouseleave', () => timelineTools && timelineTools.hideTooltip(eventTooltip));
+              }
+              installWindowDrag();
+              window.addEventListener('resize', draw);
+              setPreset('24h', false);
+            })();
+
+          h3 Active P2Pool Nodes
+          .table-responsive
+            table.table.table-bordered.table-striped.table-hover
+              thead
+                tr
+                  th Pool
+                  th Status
+                  th.text-end Endpoint Hashrate
+                  th.text-end P2Pool Total
+                  th.text-end Network Estimate
+                  th.text-end Miners
+                  th.text-end Shares
+                  th Stratum
+                  th Details
+              tbody
+                if miningStats.activePools && miningStats.activePools.length
+                  each pool in miningStats.activePools
+                    tr
+                      td
+                        strong #{pool.name}
+                        if pool.siteUrl
+                          div.small
+                            a(href=pool.siteUrl, target='_blank', rel='noopener noreferrer') Site
+                      td
+                        span.badge.bg-success Live
+                        div.small.text-muted #{pool.sourceNote}
+                      td.text-end #{miningStats.formatHashrate(pool.endpointHashrate || pool.recentHashrate || pool.localHashrate)}
+                      td.text-end.defcoin-muted-metric #{miningStats.formatHashrate(pool.p2poolHashrate || pool.globalHashrate)}
+                      td.text-end #{miningStats.formatHashrate(pool.networkHashrate)}
+                      td.text-end #{pool.minerCount}
+                      td.text-end #{pool.totalShares}
+                      td
+                        code #{pool.stratumUrl}
+                      td
+                        if pool.statsUrl
+                          a(href=pool.statsUrl, target='_blank', rel='noopener noreferrer') Stats
+                        div.small.text-muted v#{pool.version}, fee #{Number(pool.fee || 0).toFixed(2)}%
+                else
+                  tr
+                    td.text-center(colspan='9') No active P2Pool nodes answered the live checks.
+          if miningStats.configuredPoolErrors && miningStats.configuredPoolErrors.length
+            .alert.alert-warning.mt-3(role='alert')
+              strong Configured active pools not answering:
+              ul.mb-0
+                each pool in miningStats.configuredPoolErrors
+                  li #{pool.name}: #{pool.error || 'not live'}
+          if miningStats.defcoinStatsOther && miningStats.defcoinStatsOther.reportedHashrate != null
+            p.small.text-muted.mt-3
+              | DefcoinStats also reports an “Other / Solo-mining estimate” of #{miningStats.formatDefcoinStatsHashrate(miningStats.defcoinStatsOther.reportedHashrate)}. It is not an individual pool and is not mixed into the active P2Pool list.
+
+          .defcoin-hashrate-history-card.mt-4.mb-4
+            .defcoin-hashrate-history-head
+              div
+                h3 DefcoinStats Historical Hashrate Archive
+                p.defcoin-helper.mb-0
+                  | Imported raw DefcoinStats chart points are preserved separately from live P2Pool samples. Network, pool, and computed Other lines are overlaid here with the same H/s conversion DefcoinStats used in its chart JavaScript.
+                p.defcoin-chart-note Timeline events use linked source evidence; older archive-only placeholder ranges have been removed.
+              if defcoinStatsHistorical && defcoinStatsHistorical.rawSampleCount
+                span.defcoin-table-meta.defcoin-latest-sample #{defcoinStatsHistorical.rawSampleCount} raw points imported
+            .defcoin-hashrate-chart-shell
+              canvas#defcoin-stats-archive-chart(width='1200', height='420', aria-label='DefcoinStats historical hashrate archive chart')
+              #defcoin-stats-archive-empty.defcoin-hashrate-empty(style='display:none;') DefcoinStats archive data is importing. This chart will fill in as the background job writes samples.
+              #defcoin-stats-archive-tooltip.defcoin-chart-tooltip(style='display:none;')
+            #defcoin-stats-archive-window.defcoin-hashrate-window(role='slider', tabindex='0', aria-label='Visible DefcoinStats archive window')
+              .defcoin-hashrate-window-track
+              .defcoin-hashrate-window-selection
+              .defcoin-hashrate-window-handle.defcoin-hashrate-window-handle-start
+              .defcoin-hashrate-window-handle.defcoin-hashrate-window-handle-end
+            .defcoin-hashrate-range-row
+              span.defcoin-hashrate-range-title Visible archive range
+              span#defcoin-stats-archive-range-label.defcoin-hashrate-range-label All
+            .defcoin-hashrate-presets(role='group', aria-label='DefcoinStats archive presets')
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='1h') 1H
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='2h') 2H
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='6h') 6H
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='12h') 12H
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='24h') 24H
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='2d') 2D
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='7d') 7D
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='month') Month
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset(type='button', data-range='year') Year
+              button.defcoin-hashrate-preset.defcoin-stats-archive-preset.active(type='button', data-range='all') All
+            #defcoin-stats-archive-legend.defcoin-hashrate-legend(style='display:none;')
+            .defcoin-chart-control-row.defcoin-series-grid#defcoin-stats-archive-series-controls(role='group', aria-label='DefcoinStats archive visible series')
+              span.defcoin-chart-control-title Legend:
+            .defcoin-chart-control-row#defcoin-archive-event-controls(role='group', aria-label='DefcoinStats archive event overlays')
+              span.defcoin-chart-control-title Event overlays
+              label.defcoin-chart-toggle
+                input.defcoin-event-toggle(type='checkbox', value='conference', checked)
+                span DEF CON
+              label.defcoin-chart-toggle
+                input.defcoin-event-toggle(type='checkbox', value='history', checked)
+                span Defcoin history
+            details.defcoin-disclosure.defcoin-event-list-disclosure#defcoin-archive-visible-events
+              summary.defcoin-disclosure-summary
+                span.defcoin-disclosure-arrow(aria-hidden='true')
+                span Visible events in this chart range
+                span.defcoin-disclosure-count#defcoin-archive-event-count 0
+              .defcoin-visible-events-list#defcoin-archive-event-list
+            details.defcoin-disclosure.defcoin-energy-disclosure
+              summary.defcoin-disclosure-summary
+                span.defcoin-disclosure-arrow(aria-hidden='true')
+                span Electricity cost calculator
+              .defcoin-energy-panel#defcoin-archive-energy-panel
+                .defcoin-energy-panel-head
+                  div
+                    strong Estimated power cost for visible network hashrate
+                    p.defcoin-energy-summary.mb-0 Calculated from the selected archive range and editable hardware profiles.
+                  label.defcoin-energy-price-label
+                    span Electricity
+                    input.defcoin-energy-price(type='number', min='0', step='0.01', value=(energyDefaults && energyDefaults.defaultUsdPerKwh ? energyDefaults.defaultUsdPerKwh : 0.15))
+                    span USD/kWh
+                .table-responsive
+                  table.defcoin-energy-table
+                    thead
+                      tr
+                        th Hardware
+                        th.text-end Hashrate
+                        th.text-end Watts
+                        th.text-end Cost for range
+                    tbody
+                      if energyDefaults && energyDefaults.devices && energyDefaults.devices.length
+                        each device in energyDefaults.devices
+                          tr(data-device-id=device.id)
+                            td
+                              input.defcoin-device-name(type='text', value=device.name, aria-label='Hardware name')
+                              if device.note
+                                div.defcoin-device-note #{device.note}
+                            td
+                              input.defcoin-device-hashrate(type='number', min='0', step='1', value=device.hashrateHps, aria-label='Hardware hashrate in hashes per second')
+                            td
+                              input.defcoin-device-watts(type='number', min='0', step='1', value=device.watts, aria-label='Hardware watts')
+                            td.defcoin-device-cost -
+            p.defcoin-hashrate-thanks
+              | Special thanks to
+              a(href='https://defcoinstats.com/', target='_blank', rel='noopener noreferrer') &nbsp;Coolacid and DefcoinStats.com
+              |  for preserving and sharing historical Defcoin pool statistics.
+
+          script(type='application/json', id='defcoin-stats-archive-data')!= (typeof defcoinStatsHistoricalJson !== 'undefined' && defcoinStatsHistoricalJson ? defcoinStatsHistoricalJson : '{"sources":[],"samples":[]}')
+          script.
+            (function() {
+              const dataEl = document.getElementById('defcoin-stats-archive-data');
+              const canvas = document.getElementById('defcoin-stats-archive-chart');
+              const empty = document.getElementById('defcoin-stats-archive-empty');
+              const tooltip = document.getElementById('defcoin-stats-archive-tooltip');
+              const legend = document.getElementById('defcoin-stats-archive-legend');
+              const seriesControls = document.getElementById('defcoin-stats-archive-series-controls');
+              const rangeLabel = document.getElementById('defcoin-stats-archive-range-label');
+              const windowControl = document.getElementById('defcoin-stats-archive-window');
+              const selection = windowControl ? windowControl.querySelector('.defcoin-hashrate-window-selection') : null;
+              const startHandle = windowControl ? windowControl.querySelector('.defcoin-hashrate-window-handle-start') : null;
+              const endHandle = windowControl ? windowControl.querySelector('.defcoin-hashrate-window-handle-end') : null;
+              const presetButtons = Array.from(document.querySelectorAll('.defcoin-stats-archive-preset'));
+              const timelineTools = window.DefcoinTimelineTools || null;
+              if (!dataEl || !canvas || !empty || !legend || !rangeLabel || !windowControl || !selection || !startHandle || !endHandle) return;
+              let chartData = {sources: [], samples: []};
+              try { chartData = JSON.parse(dataEl.textContent || '{}'); } catch (err) {}
+              const allSamples = (chartData.samples || []).filter((sample) => Number(sample.t) > 0 && Number(sample.hashrate) > 0).sort((a, b) => Number(a.t) - Number(b.t));
+              const sourceById = new Map((chartData.sources || []).map((source) => [source.id, source]));
+              let activeSourceIds = new Set(Array.from(sourceById.keys()));
+              let archiveHoverState = null;
+              let archiveHoverPending = false;
+              const seriesRateElements = new Map();
+              const ranges = {
+                '1h': {label: '1H', ms: 60 * 60 * 1000},
+                '2h': {label: '2H', ms: 2 * 60 * 60 * 1000},
+                '6h': {label: '6H', ms: 6 * 60 * 60 * 1000},
+                '12h': {label: '12H', ms: 12 * 60 * 60 * 1000},
+                '24h': {label: '24H', ms: 24 * 60 * 60 * 1000},
+                '2d': {label: '2D', ms: 2 * 24 * 60 * 60 * 1000},
+                '7d': {label: '7D', ms: 7 * 24 * 60 * 60 * 1000},
+                month: {label: 'Month', ms: 30 * 24 * 60 * 60 * 1000},
+                year: {label: 'Year', ms: 365 * 24 * 60 * 60 * 1000},
+                all: {label: 'All', ms: Infinity}
+              };
+              const rawMinT = allSamples.length ? Number(allSamples[0].t) : Date.now() - ranges.year.ms;
+              const rawMaxT = allSamples.length ? Number(allSamples[allSamples.length - 1].t) : Date.now();
+              const dataMinT = rawMinT === rawMaxT ? rawMinT - ranges['24h'].ms : rawMinT;
+              const dataMaxT = rawMinT === rawMaxT ? rawMaxT + ranges['24h'].ms : rawMaxT;
+              const minSpan = Math.min(0.02, Math.max(0.000001, (60 * 60 * 1000) / Math.max(1, dataMaxT - dataMinT)));
+              let windowStart = 0;
+              let windowEnd = 1;
+              let activePreset = 'all';
+              let drawPending = false;
+
+              function formatHashrate(value) {
+                const numeric = Number(value || 0);
+                if (!Number.isFinite(numeric) || numeric <= 0) return '-';
+                const units = ['H/s', 'KH/s', 'MH/s', 'GH/s', 'TH/s'];
+                let rate = numeric;
+                let unitIndex = 0;
+                while (rate >= 1000 && unitIndex < units.length - 1) {
+                  rate /= 1000;
+                  unitIndex += 1;
+                }
+                return `${rate.toFixed(rate >= 100 ? 0 : 2)} ${units[unitIndex]}`;
+              }
+
+              function durationText(ms) {
+                const seconds = Math.max(0, Math.round(ms / 1000));
+                const minutes = Math.floor(seconds / 60);
+                const remainder = seconds % 60;
+                if (minutes < 60) return remainder === 0 ? `${minutes} min` : `${minutes} min ${remainder} sec`;
+                const hours = Math.floor(minutes / 60);
+                const minuteRemainder = minutes % 60;
+                if (hours >= 24) {
+                  const days = Math.floor(hours / 24);
+                  const hourRemainder = hours % 24;
+                  const dayText = days === 1 ? '1 day' : `${days} days`;
+                  if (days >= 365) {
+                    const years = Math.floor(days / 365);
+                    const dayRemainder = days % 365;
+                    const yearText = years === 1 ? '1 year' : `${years} years`;
+                    return dayRemainder === 0 ? yearText : `${yearText} ${dayRemainder} days`;
+                  }
+                  return hourRemainder === 0 ? dayText : `${dayText} ${hourRemainder} hr`;
+                }
+                return minuteRemainder === 0 ? `${hours} hr` : `${hours} hr ${minuteRemainder} min`;
+              }
+
+              function formatDate(value) {
+                return new Date(value).toLocaleString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit'
+                });
+              }
+
+              function formatTickDate(value, spanMs) {
+                if (spanMs <= 2 * ranges['24h'].ms) {
+                  return new Date(value).toLocaleString([], {month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+                }
+                return new Date(value).toLocaleDateString([], {year: 'numeric', month: 'short'});
+              }
+
+              function activeSources() {
+                return activeSourceIds.size ? activeSourceIds : new Set();
+              }
+
+              function installSeriesControls() {
+                if (!seriesControls) return;
+                const sources = Array.from(sourceById.values()).sort((a, b) => {
+                  if (a.kind === 'network' && b.kind !== 'network') return -1;
+                  if (a.kind !== 'network' && b.kind === 'network') return 1;
+                  return String(a.name).localeCompare(String(b.name));
+                });
+                seriesControls.querySelectorAll('.defcoin-series-toggle-label').forEach((node) => node.remove());
+                seriesRateElements.clear();
+                sources.forEach((source) => {
+                  const label = document.createElement('label');
+                  label.className = 'defcoin-chart-toggle defcoin-series-toggle-label';
+                  const input = document.createElement('input');
+                  input.type = 'checkbox';
+                  input.className = 'defcoin-series-toggle';
+                  input.value = source.id;
+                  input.checked = activeSourceIds.has(source.id);
+                  const swatch = document.createElement('span');
+                  swatch.className = 'defcoin-hashrate-swatch';
+                  swatch.style.background = source.color || '#d8dee9';
+                  const text = document.createElement('span');
+                  text.className = 'defcoin-series-name';
+                  text.textContent = source.name;
+                  const rate = document.createElement('span');
+                  rate.className = 'defcoin-series-rate';
+                  rate.textContent = '-';
+                  input.addEventListener('change', () => {
+                    if (input.checked) activeSourceIds.add(source.id);
+                    else activeSourceIds.delete(source.id);
+                    scheduleDraw();
+                  });
+                  label.appendChild(input);
+                  label.appendChild(swatch);
+                  label.appendChild(text);
+                  label.appendChild(rate);
+                  seriesControls.appendChild(label);
+                  seriesRateElements.set(source.id, rate);
+                });
+              }
+
+              function updateSeriesRates(samples) {
+                if (!seriesControls) return;
+                const latestBySource = new Map();
+                (samples || []).forEach((sample) => {
+                  latestBySource.set(sample.sourceId, sample);
+                });
+                Array.from(sourceById.values()).forEach((source) => {
+                  const rate = seriesRateElements.get(source.id);
+                  if (!rate) return;
+                  const latest = latestBySource.get(source.id);
+                  rate.textContent = latest ? formatHashrate(latest.hashrate) : '-';
+                  rate.classList.toggle('is-empty', !latest);
+                });
+              }
+
+              function hideArchiveTooltip() {
+                if (tooltip) tooltip.style.display = 'none';
+              }
+
+              function updateArchiveTooltip(event) {
+                if (!archiveHoverState || !tooltip) return;
+                const rect = canvas.getBoundingClientRect();
+                const mx = event.clientX - rect.left;
+                const my = event.clientY - rect.top;
+                if (timelineTools && archiveHoverState.eventHitboxes && archiveHoverState.eventHitboxes.length) {
+                  const eventHit = timelineTools.findEventHit(archiveHoverState.eventHitboxes, mx, my);
+                  if (eventHit) {
+                    timelineTools.showEventTooltip(tooltip, canvas, eventHit, mx, my);
+                    return;
+                  }
+                }
+                let best = null;
+                let bestDistance = Infinity;
+                archiveHoverState.points.forEach((point) => {
+                  const dx = point.x - mx;
+                  const dy = point.y - my;
+                  const distance = dx * dx + dy * dy;
+                  if (distance < bestDistance) {
+                    best = point;
+                    bestDistance = distance;
+                  }
+                });
+                if (!best || bestDistance > 22 * 22) {
+                  hideArchiveTooltip();
+                  return;
+                }
+                tooltip.innerHTML = `<strong>${best.sourceName}</strong><span>${formatHashrate(best.hashrate)}</span><span>${formatDate(best.t)}</span>`;
+                const tooltipWidth = 230;
+                const left = Math.max(8, Math.min(rect.width - tooltipWidth - 8, best.x + 14));
+                const top = Math.max(8, Math.min(rect.height - 76, best.y - 44));
+                tooltip.style.left = `${left}px`;
+                tooltip.style.top = `${top}px`;
+                tooltip.style.display = 'block';
+              }
+
+              function scheduleArchiveTooltip(event) {
+                if (!tooltip) return;
+                const lastEvent = {clientX: event.clientX, clientY: event.clientY};
+                if (archiveHoverPending) {
+                  canvas._defcoinLastHoverEvent = lastEvent;
+                  return;
+                }
+                archiveHoverPending = true;
+                canvas._defcoinLastHoverEvent = lastEvent;
+                requestAnimationFrame(() => {
+                  archiveHoverPending = false;
+                  updateArchiveTooltip(canvas._defcoinLastHoverEvent);
+                });
+              }
+
+              function timeForPosition(pos) {
+                return dataMinT + Math.max(0, Math.min(1, pos)) * (dataMaxT - dataMinT);
+              }
+
+              function positionForTime(time) {
+                if (dataMaxT <= dataMinT) return 0;
+                return Math.max(0, Math.min(1, (time - dataMinT) / (dataMaxT - dataMinT)));
+              }
+
+              function minimumWindowSpan() {
+                const width = windowControl ? windowControl.getBoundingClientRect().width : 0;
+                const visualSpan = width > 0 ? 18 / width : 0;
+                return Math.min(1, Math.max(minSpan, visualSpan));
+              }
+
+              function clampWindow(start, end) {
+                start = Number.isFinite(start) ? start : 0;
+                end = Number.isFinite(end) ? end : 1;
+                const minWindowSpan = minimumWindowSpan();
+                let span = Math.max(minWindowSpan, end - start);
+                if (span >= 1) {
+                  windowStart = 0;
+                  windowEnd = 1;
+                  return;
+                }
+                start = Math.max(0, Math.min(1 - span, start));
+                windowStart = start;
+                windowEnd = start + span;
+              }
+
+              function updatePresetState(preset) {
+                activePreset = preset || 'custom';
+                presetButtons.forEach((button) => {
+                  button.classList.toggle('active', button.dataset.range === activePreset);
+                });
+              }
+
+              function bestPresetForSpan(spanMs) {
+                if (!Number.isFinite(spanMs) || spanMs <= 0) return 'custom';
+                const fullSpan = Math.max(1, rawMaxT - rawMinT);
+                if (spanMs >= fullSpan * 0.94) return 'all';
+                let bestPreset = 'custom';
+                let bestScore = Infinity;
+                Object.keys(ranges).forEach((key) => {
+                  const config = ranges[key];
+                  if (!Number.isFinite(config.ms)) return;
+                  const score = Math.abs(Math.log(spanMs / config.ms));
+                  if (score < bestScore) {
+                    bestPreset = key;
+                    bestScore = score;
+                  }
+                });
+                return bestScore <= Math.log(1.35) ? bestPreset : 'custom';
+              }
+
+              function syncPresetStateFromWindow() {
+                updatePresetState(bestPresetForSpan(timeForPosition(windowEnd) - timeForPosition(windowStart)));
+              }
+
+              function centeredRangeForDuration(durationMs, minTime, maxTime) {
+                const domainSpan = Math.max(1, maxTime - minTime);
+                const width = Math.min(durationMs, domainSpan);
+                let center = (timeForPosition(windowStart) + timeForPosition(windowEnd)) / 2;
+                if (!Number.isFinite(center)) center = maxTime - width / 2;
+                center = Math.max(minTime + width / 2, Math.min(maxTime - width / 2, center));
+                return {
+                  start: center - width / 2,
+                  end: center + width / 2
+                };
+              }
+
+              function setPreset(preset, preserveCenter) {
+                const config = ranges[preset] || ranges.all;
+                if (preset === 'all' || !Number.isFinite(config.ms)) {
+                  clampWindow(positionForTime(rawMinT), positionForTime(rawMaxT));
+                } else {
+                  if (preserveCenter === false) {
+                    const endTime = dataMaxT;
+                    const startTime = Math.max(dataMinT, endTime - config.ms);
+                    clampWindow(positionForTime(startTime), positionForTime(endTime));
+                  } else {
+                    const centeredRange = centeredRangeForDuration(config.ms, dataMinT, dataMaxT);
+                    clampWindow(positionForTime(centeredRange.start), positionForTime(centeredRange.end));
+                  }
+                }
+                updatePresetState(preset);
+                scheduleDraw();
+              }
+
+              function updateWindowControl() {
+                const startPercent = windowStart * 100;
+                const endPercent = windowEnd * 100;
+                selection.style.left = `${startPercent}%`;
+                selection.style.width = `${Math.max(0, endPercent - startPercent)}%`;
+                startHandle.style.left = `${startPercent}%`;
+                endHandle.style.left = `${endPercent}%`;
+                const startTime = timeForPosition(windowStart);
+                const endTime = timeForPosition(windowEnd);
+                rangeLabel.textContent = `${formatDate(startTime)} - ${formatDate(endTime)} | ${durationText(endTime - startTime)} selected`;
+              }
+
+              function scheduleDraw() {
+                if (drawPending) return;
+                drawPending = true;
+                requestAnimationFrame(() => {
+                  drawPending = false;
+                  drawArchiveChart();
+                });
+              }
+
+              function downsample(points, maxPoints) {
+                if (points.length <= maxPoints) return points;
+                const stride = Math.ceil(points.length / maxPoints);
+                const sampled = [];
+                for (let index = 0; index < points.length; index += stride) {
+                  sampled.push(points[index]);
+                }
+                const last = points[points.length - 1];
+                if (sampled[sampled.length - 1] !== last) sampled.push(last);
+                return sampled;
+              }
+
+              function normalizedMousePosition(event) {
+                const rect = windowControl.getBoundingClientRect();
+                return Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width)));
+              }
+
+              function installWindowDrag() {
+                let dragMode = 'none';
+                let pressStart = 0;
+                let pressEnd = 1;
+                let pressX = 0;
+                windowControl.addEventListener('pointerdown', (event) => {
+                  const pos = normalizedMousePosition(event);
+                  const controlRect = windowControl.getBoundingClientRect();
+                  const edgeThreshold = Math.max(0.018, 16 / Math.max(1, controlRect.width));
+                  pressStart = windowStart;
+                  pressEnd = windowEnd;
+                  pressX = pos;
+                  const insideSelection = pos >= pressStart && pos <= pressEnd;
+                  const selectionPixels = Math.abs(pressEnd - pressStart) * Math.max(1, controlRect.width);
+                  const pointerPx = pos * Math.max(1, controlRect.width);
+                  const startPx = pressStart * Math.max(1, controlRect.width);
+                  const endPx = pressEnd * Math.max(1, controlRect.width);
+                  const resizeBandPx = Math.min(18, Math.max(8, selectionPixels * 0.22));
+                  windowControl.setPointerCapture(event.pointerId);
+                  if (insideSelection) {
+                    if (selectionPixels <= 72) {
+                      dragMode = 'move';
+                    } else if (pointerPx - startPx <= resizeBandPx) {
+                      dragMode = 'left';
+                    } else if (endPx - pointerPx <= resizeBandPx) {
+                      dragMode = 'right';
+                    } else {
+                      dragMode = 'move';
+                    }
+                  } else if (Math.abs(pos - windowStart) < edgeThreshold) {
+                    dragMode = 'left';
+                  } else if (Math.abs(pos - windowEnd) < edgeThreshold) {
+                    dragMode = 'right';
+                  } else {
+                    const span = windowEnd - windowStart;
+                    clampWindow(pos - span / 2, pos + span / 2);
+                    dragMode = 'move';
+                    pressStart = windowStart;
+                    pressEnd = windowEnd;
+                    pressX = pos;
+                    syncPresetStateFromWindow();
+                    scheduleDraw();
+                  }
+                  event.preventDefault();
+                });
+                windowControl.addEventListener('pointermove', (event) => {
+                  if (dragMode === 'none') return;
+                  const pos = normalizedMousePosition(event);
+                  const minWindowSpan = minimumWindowSpan();
+                  if (dragMode === 'left') {
+                    clampWindow(Math.min(pos, pressEnd - minWindowSpan), pressEnd);
+                  } else if (dragMode === 'right') {
+                    clampWindow(pressStart, Math.max(pos, pressStart + minWindowSpan));
+                  } else if (dragMode === 'move') {
+                    const delta = pos - pressX;
+                    clampWindow(pressStart + delta, pressEnd + delta);
+                  }
+                  syncPresetStateFromWindow();
+                  scheduleDraw();
+                });
+                windowControl.addEventListener('pointerup', (event) => {
+                  if (windowControl.hasPointerCapture(event.pointerId)) {
+                    windowControl.releasePointerCapture(event.pointerId);
+                  }
+                  dragMode = 'none';
+                });
+                windowControl.addEventListener('pointercancel', () => {
+                  dragMode = 'none';
+                });
+                windowControl.addEventListener('keydown', (event) => {
+                  const span = windowEnd - windowStart;
+                  const moveStep = event.shiftKey ? 0.08 : 0.02;
+                  let handled = true;
+                  if (event.key === 'ArrowLeft') {
+                    clampWindow(windowStart - moveStep, windowEnd - moveStep);
+                  } else if (event.key === 'ArrowRight') {
+                    clampWindow(windowStart + moveStep, windowEnd + moveStep);
+                  } else if (event.key === 'ArrowUp' || event.key === '+') {
+                    const midpoint = (windowStart + windowEnd) / 2;
+                    const nextSpan = Math.max(minimumWindowSpan(), span * 0.86);
+                    clampWindow(midpoint - nextSpan / 2, midpoint + nextSpan / 2);
+                  } else if (event.key === 'ArrowDown' || event.key === '-') {
+                    const midpoint = (windowStart + windowEnd) / 2;
+                    const nextSpan = Math.min(1, span * 1.18);
+                    clampWindow(midpoint - nextSpan / 2, midpoint + nextSpan / 2);
+                  } else {
+                    handled = false;
+                  }
+                  if (handled) {
+                    event.preventDefault();
+                    syncPresetStateFromWindow();
+                    scheduleDraw();
+                  }
+                });
+              }
+
+              function drawArchiveChart() {
+                updateWindowControl();
+                const windowStartMs = timeForPosition(windowStart);
+                const windowEndMs = timeForPosition(windowEnd);
+                const visibleSourceIds = activeSources();
+                const samples = allSamples.filter((sample) => visibleSourceIds.has(sample.sourceId) && Number(sample.t) >= windowStartMs && Number(sample.t) <= windowEndMs);
+                if (!samples.length) {
+                  empty.style.display = 'flex';
+                  legend.innerHTML = '';
+                  updateSeriesRates([]);
+                  archiveHoverState = null;
+                  hideArchiveTooltip();
+                  const ctx = canvas.getContext('2d');
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  if (timelineTools) {
+                    timelineTools.renderVisibleEventList({
+                      listId: 'defcoin-archive-event-list',
+                      countId: 'defcoin-archive-event-count',
+                      minT: windowStartMs,
+                      maxT: windowEndMs,
+                      controlsId: 'defcoin-archive-event-controls'
+                    });
+                    timelineTools.updateEnergyEstimator({
+                      panelId: 'defcoin-archive-energy-panel',
+                      samples,
+                      startMs: windowStartMs,
+                      endMs: windowEndMs,
+                      formatHashrate,
+                      durationText
+                    });
+                  }
+                  return;
+                }
+                empty.style.display = 'none';
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                const width = Math.max(640, rect.width || 1000);
+                const height = Math.max(380, rect.height || 420);
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, width, height);
+
+                const minT = windowStartMs;
+                const maxT = windowEndMs;
+                const selectedSpan = Math.max(1, maxT - minT);
+                const maxLog = Math.max(1, Math.ceil(Math.max.apply(null, samples.map((sample) => Math.log10(Number(sample.hashrate) + 1)))));
+                const pad = {left: 96, right: 34, top: 32, bottom: 48};
+                const plotWidth = width - pad.left - pad.right;
+                const plotHeight = height - pad.top - pad.bottom;
+                const eventHitboxes = [];
+                function xFor(t) { return pad.left + ((Number(t) - minT) / Math.max(1, maxT - minT)) * plotWidth; }
+                function yFor(hps) { return pad.top + plotHeight - (Math.log10(Number(hps) + 1) / maxLog) * plotHeight; }
+
+                if (timelineTools) {
+                  timelineTools.drawEventBands({
+                    ctx,
+                    minT,
+                    maxT,
+                    pad,
+                    plotWidth,
+                    plotHeight,
+                    xFor,
+                    controlsId: 'defcoin-archive-event-controls',
+                    eventHitboxes
+                  });
+                  timelineTools.renderVisibleEventList({
+                    listId: 'defcoin-archive-event-list',
+                    countId: 'defcoin-archive-event-count',
+                    minT,
+                    maxT,
+                    controlsId: 'defcoin-archive-event-controls'
+                  });
+                }
+
+                ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+                ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+                ctx.fillStyle = 'rgba(255,255,255,0.68)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                for (let i = 0; i <= 4; i += 1) {
+                  const ratio = i / 4;
+                  const y = pad.top + plotHeight - ratio * plotHeight;
+                  ctx.beginPath();
+                  ctx.moveTo(pad.left, y);
+                  ctx.lineTo(width - pad.right, y);
+                  ctx.stroke();
+                  ctx.fillText(formatHashrate(Math.pow(10, ratio * maxLog) - 1), pad.left - 12, y);
+                }
+
+                const hoverPoints = [];
+                Array.from(sourceById.values()).filter((source) => visibleSourceIds.has(source.id)).forEach((source) => {
+                  const points = downsample(samples.filter((sample) => sample.sourceId === source.id), Math.max(260, Math.floor(plotWidth * 1.8)));
+                  if (!points.length) return;
+                  ctx.strokeStyle = source.color || '#d8dee9';
+                  ctx.globalAlpha = source.kind === 'network' ? 1 : 0.72;
+                  ctx.lineWidth = source.kind === 'network' ? 2.4 : 1.2;
+                  ctx.beginPath();
+                  points.forEach((point, index) => {
+                    const x = xFor(point.t);
+                    const y = yFor(point.hashrate);
+                    if (index === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                  });
+                  ctx.stroke();
+                  ctx.globalAlpha = 1;
+                  samples.filter((sample) => sample.sourceId === source.id).forEach((point) => {
+                    hoverPoints.push({
+                      x: xFor(point.t),
+                      y: yFor(point.hashrate),
+                      t: Number(point.t),
+                      hashrate: Number(point.hashrate),
+                      sourceName: source.name
+                    });
+                  });
+                });
+                archiveHoverState = {points: hoverPoints, eventHitboxes};
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+                ctx.beginPath();
+                ctx.moveTo(pad.left, pad.top);
+                ctx.lineTo(pad.left, pad.top + plotHeight);
+                ctx.lineTo(width - pad.right, pad.top + plotHeight);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.68)';
+                ctx.textBaseline = 'top';
+                ctx.textAlign = 'left';
+                ctx.fillText(formatTickDate(minT, selectedSpan), pad.left, height - 30);
+                ctx.textAlign = 'right';
+                ctx.fillText(formatTickDate(maxT, selectedSpan), width - pad.right, height - 30);
+                ctx.textAlign = 'left';
+                ctx.fillText('Log scale', pad.left, 10);
+
+                legend.innerHTML = '';
+                updateSeriesRates(samples);
+                if (timelineTools) {
+                  timelineTools.updateEnergyEstimator({
+                    panelId: 'defcoin-archive-energy-panel',
+                    samples,
+                    startMs: windowStartMs,
+                    endMs: windowEndMs,
+                    formatHashrate,
+                    durationText
+                  });
+                }
+              }
+              presetButtons.forEach((button) => {
+                button.addEventListener('click', () => setPreset(button.dataset.range || 'all'));
+              });
+              if (timelineTools) {
+                timelineTools.installEventControls('defcoin-archive-event-controls', scheduleDraw);
+                timelineTools.installEnergyEstimator('defcoin-archive-energy-panel', scheduleDraw);
+              }
+              installSeriesControls();
+              if (tooltip) {
+                canvas.addEventListener('mousemove', scheduleArchiveTooltip);
+                canvas.addEventListener('mouseleave', hideArchiveTooltip);
+              }
+              installWindowDrag();
+              window.addEventListener('resize', scheduleDraw);
+              setPreset('all');
+            })();
+
+          details.defcoin-disclosure.defcoin-chronological-events-disclosure#defcoin-chronological-events
+            summary.defcoin-disclosure-summary.defcoin-chronological-events-summary
+              span.defcoin-disclosure-arrow(aria-hidden='true')
+              span.defcoin-event-history-title Chronological Event History
+              span.defcoin-event-history-filter-shell#defcoin-event-history-filter-shell
+                span.defcoin-event-history-filter-group
+                  span.defcoin-event-history-filter-label Type
+                  span.defcoin-event-history-filter-options#defcoin-event-history-type-filters
+                span.defcoin-event-history-filter-group
+                  span.defcoin-event-history-filter-label Structure
+                  span.defcoin-event-history-filter-options#defcoin-event-history-structure-filters
+              span.defcoin-disclosure-count#defcoin-event-history-count 0
+            .defcoin-event-history-body
+              p.defcoin-helper
+                | Complete timeline entries sorted newest to oldest. Release and build records are point events; conferences and confirmed activity windows remain ranges.
+              .defcoin-event-history-list#defcoin-event-history-list
+          script.
+            (function() {
+              const dataEl = document.getElementById('defcoin-timeline-events-data');
+              const typeContainer = document.getElementById('defcoin-event-history-type-filters');
+              const structureContainer = document.getElementById('defcoin-event-history-structure-filters');
+              const filterShell = document.getElementById('defcoin-event-history-filter-shell');
+              const list = document.getElementById('defcoin-event-history-list');
+              const count = document.getElementById('defcoin-event-history-count');
+              if (!dataEl || !typeContainer || !structureContainer || !list) return;
+
+              let payload = {events: []};
+              try {
+                payload = JSON.parse(dataEl.textContent || '{}');
+              } catch (err) {
+                payload = {events: []};
+              }
+              const events = (Array.isArray(payload.events) ? payload.events : [])
+                .filter((event) => event && event.chartVisible !== false);
+
+              const typeLabels = {
+                chain: 'Chain',
+                conference: 'DEF CON',
+                event: 'Event',
+                mining: 'Mining',
+                pool: 'Pools',
+                project: 'Project',
+                release: 'Releases',
+                site: 'Site',
+                stats: 'Stats',
+                utility: 'Utility'
+              };
+              const typeOrder = ['release', 'chain', 'pool', 'mining', 'stats', 'project', 'site', 'utility', 'conference', 'event'];
+              const structureLabels = {point: 'Point events', range: 'Ranges'};
+              const structureOrder = ['point', 'range'];
+              const activeTypes = new Set();
+              const activeStructures = new Set(structureOrder);
+
+              function hasExplicitTime(value) {
+                return /T\d{2}:?\d{2}/.test(String(value || ''));
+              }
+
+              function fullDateTimeLabel(value) {
+                const date = new Date(value);
+                if (!Number.isFinite(date.getTime())) return '';
+                return date.toLocaleString([], {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  timeZoneName: 'short'
+                });
+              }
+
+              function fullDateOnlyLabel(value) {
+                const date = new Date(value);
+                if (!Number.isFinite(date.getTime())) return '';
+                return `${date.toLocaleDateString([], {year: 'numeric', month: 'short', day: 'numeric'})} (time unknown)`;
+              }
+
+              function eventType(event) {
+                if (event.category === 'conference') return 'conference';
+                return event.subcategory || event.category || 'event';
+              }
+
+              function eventStructure(event) {
+                return event.isPointEvent ? 'point' : 'range';
+              }
+
+              function eventSortTime(event) {
+                if (event.eventAt) {
+                  const exact = Date.parse(event.eventAt);
+                  if (Number.isFinite(exact)) return exact;
+                }
+                const start = Number(event.startMs);
+                if (Number.isFinite(start)) return start;
+                const fallback = Date.parse(`${event.startDate || event.date || '1970-01-01'}T00:00:00Z`);
+                return Number.isFinite(fallback) ? fallback : 0;
+              }
+
+              function eventPointDate(event) {
+                if (event.eventAtText) return event.eventAtText;
+                if (event.eventAt && !hasExplicitTime(event.eventAt)) return fullDateOnlyLabel(event.startMs || event.eventAt);
+                return fullDateTimeLabel(event.startMs || event.eventAt);
+              }
+
+              function eventBoundaryDate(event, fieldName, dateFieldName, msValue) {
+                if (event[fieldName] && !hasExplicitTime(event[fieldName])) return fullDateOnlyLabel(msValue || event[fieldName]);
+                if (event[dateFieldName]) return fullDateOnlyLabel(msValue || event[dateFieldName]);
+                return fullDateTimeLabel(msValue || event[fieldName] || event[dateFieldName]);
+              }
+
+              function eventDateText(event) {
+                if (event.isPointEvent) {
+                  return `Event date: ${eventPointDate(event)}`;
+                }
+                const startText = eventBoundaryDate(event, 'startAt', 'startDate', event.startMs);
+                const endText = eventBoundaryDate(event, 'endAt', 'endDate', event.endMs);
+                return `Start: ${startText} | End: ${endText}`;
+              }
+
+              function makeFilter(container, groupName, value, label, activeSet) {
+                const option = document.createElement('label');
+                option.className = 'defcoin-chart-toggle defcoin-event-history-filter';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.name = groupName;
+                input.value = value;
+                input.checked = activeSet.has(value);
+                input.addEventListener('change', () => {
+                  if (input.checked) activeSet.add(value);
+                  else activeSet.delete(value);
+                  renderEvents();
+                });
+                const text = document.createElement('span');
+                text.textContent = label;
+                option.appendChild(input);
+                option.appendChild(text);
+                container.appendChild(option);
+              }
+
+              function installFilters() {
+                const presentTypes = Array.from(new Set(events.map(eventType))).sort((a, b) => {
+                  const ai = typeOrder.indexOf(a);
+                  const bi = typeOrder.indexOf(b);
+                  if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+                  return String(a).localeCompare(String(b));
+                });
+                presentTypes.forEach((type) => activeTypes.add(type));
+                typeContainer.textContent = '';
+                structureContainer.textContent = '';
+                presentTypes.forEach((type) => makeFilter(typeContainer, 'event-history-type', type, typeLabels[type] || type, activeTypes));
+                structureOrder.forEach((structure) => makeFilter(structureContainer, 'event-history-structure', structure, structureLabels[structure], activeStructures));
+                if (filterShell) {
+                  filterShell.addEventListener('click', (event) => event.stopPropagation());
+                  filterShell.addEventListener('keydown', (event) => {
+                    if (event.key === ' ' || event.key === 'Enter') event.stopPropagation();
+                  });
+                }
+              }
+
+              function filteredEvents() {
+                return events
+                  .filter((event) => activeTypes.has(eventType(event)) && activeStructures.has(eventStructure(event)))
+                  .sort((a, b) => {
+                    const diff = eventSortTime(b) - eventSortTime(a);
+                    return diff !== 0 ? diff : String(a.label || '').localeCompare(String(b.label || ''));
+                  });
+              }
+
+              function renderEvents() {
+                const visible = filteredEvents();
+                if (count) count.textContent = `${visible.length}/${events.length}`;
+                list.textContent = '';
+                if (!visible.length) {
+                  const empty = document.createElement('div');
+                  empty.className = 'defcoin-visible-events-empty';
+                  empty.textContent = 'No events match the selected filters.';
+                  list.appendChild(empty);
+                  return;
+                }
+                const fragment = document.createDocumentFragment();
+                visible.forEach((event) => {
+                  const row = document.createElement('div');
+                  row.className = 'defcoin-visible-event-row defcoin-event-history-row';
+                  const date = document.createElement('div');
+                  date.className = 'defcoin-visible-event-date defcoin-event-history-date';
+                  date.textContent = eventDateText(event);
+                  const body = document.createElement('div');
+                  body.className = 'defcoin-visible-event-body defcoin-event-history-body-cell';
+                  const title = document.createElement('strong');
+                  title.textContent = event.label || event.name || 'Timeline event';
+                  const meta = document.createElement('span');
+                  meta.className = 'defcoin-visible-event-meta';
+                  meta.textContent = `${typeLabels[eventType(event)] || eventType(event)} | ${structureLabels[eventStructure(event)]}`;
+                  body.appendChild(title);
+                  body.appendChild(meta);
+                  if (event.topic || event.buildNumber) {
+                    const details = document.createElement('span');
+                    details.className = 'defcoin-event-history-detail';
+                    details.textContent = [event.topic ? `Topic: ${event.topic}` : '', event.buildNumber ? `Build: ${event.buildNumber}` : ''].filter(Boolean).join(' | ');
+                    body.appendChild(details);
+                  }
+                  if (event.note) {
+                    const note = document.createElement('p');
+                    note.textContent = event.note;
+                    body.appendChild(note);
+                  }
+                  if (event.sourceUrl) {
+                    const link = document.createElement('a');
+                    link.href = event.sourceUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = 'Source';
+                    body.appendChild(link);
+                  }
+                  row.appendChild(date);
+                  row.appendChild(body);
+                  fragment.appendChild(row);
+                });
+                list.appendChild(fragment);
+              }
+
+              installFilters();
+              renderEvents();
+            })();
+
+          hr.my-4
+          details.defcoin-disclosure.defcoin-history-pools-disclosure
+            summary.defcoin-disclosure-summary
+              span.defcoin-disclosure-arrow(aria-hidden='true')
+              span Historical Pools
+              if miningStats.historicalPoolGroups && miningStats.historicalPoolGroups.length
+                span.defcoin-disclosure-count #{miningStats.historicalPoolGroups.reduce((total, group) => total + (group.pools ? group.pools.length : 0), 0)}
+            .defcoin-history-pools-body
+              p.defcoin-helper
+                | Historical pools are grouped by the first known activity year from the local History page, DefcoinStats, and Wayback references. Active modern P2Pool endpoints are intentionally not duplicated here.
+              if miningStats.defcoinStatsError
+                .alert.alert-warning(role='alert') DefcoinStats could not be refreshed, so historical rows are shown from the local History catalog only: #{miningStats.defcoinStatsError}
+              if miningStats.historicalPoolGroups && miningStats.historicalPoolGroups.length
+                each group in miningStats.historicalPoolGroups
+                  h4.mt-4 #{group.year}
+                  .table-responsive
+                    table.table.table-bordered.table-striped.table-hover
+                      thead
+                        tr
+                          th Pool
+                          th Operator
+                          th Last Known Activity
+                          th First Seen
+                          th Original URL
+                          th Backend
+                          th DefcoinStats Snapshot
+                      tbody
+                        each pool in group.pools
+                          tr
+                            td #{pool.name}
+                            td #{pool.operator || '-'}
+                            td
+                              if pool.lastSeen && pool.lastSeen.url
+                                a(href=pool.lastSeen.url, target='_blank', rel='noopener noreferrer') #{pool.lastSeen.label}
+                              else
+                                span -
+                            td
+                              if pool.firstSeen && pool.firstSeen.url
+                                a(href=pool.firstSeen.url, target='_blank', rel='noopener noreferrer') #{pool.firstSeen.label}
+                              else
+                                span -
+                            td
+                              if pool.originalUrl
+                                a(href=pool.originalUrl, target='_blank', rel='noopener noreferrer') #{pool.originalUrl}
+                              else
+                                span -
+                              if pool.archiveUrl
+                                div.small
+                                  a(href=pool.archiveUrl, target='_blank', rel='noopener noreferrer') Wayback
+                            td #{pool.backend || ''}
+                            td
+                              if pool.defcoinStatsPool
+                                div #{miningStats.formatDefcoinStatsHashrate(pool.defcoinStatsPool.currentHashrate)}
+                                if pool.defcoinStatsPool.sourceUrl
+                                  div.small
+                                    a(href=pool.defcoinStatsPool.sourceUrl, target='_blank', rel='noopener noreferrer') DefcoinStats
+                              else
+                                span -
+                          if pool.note
+                            tr.defcoin-history-pool-notes-row
+                              td
+                              td(colspan='6')
+                                span.defcoin-history-pool-note-label Notes
+                                span #{pool.note}
+              else
+                p No historical pool rows are available.
+              p.small.text-muted.mt-3.mb-0
+                | DefcoinStats data updates on its own schedule. Live status here comes from the P2Pool APIs, while historical dates come from the curated History page and archive links.
+        else
+          p Waiting for mining stats.

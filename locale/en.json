@@ -64,7 +64,7 @@
   "menu_orphans": "Orphaned Blocks",
 
   // explorer view
-  "ex_title": "{1} Block Explorer",
+  "ex_title": "{1} Blockchain Explorer",
   "ex_description": "A listing of all verified {1} transactions",
   "ex_search_title": "Search",
   "ex_search_button": "Search",
