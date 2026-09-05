@@ -201,6 +201,32 @@ describe('security boundaries', function() {
       expect(source).toContain('return chartInFlight;');
     });
 
+    it('caches imported historical charts after the cold load', async function() {
+      const ImportedSample = require('../models/defcoinstatshistoricalsample');
+      const importedHistory = require('../lib/defcoinstats_history');
+      const originalAggregate = ImportedSample.aggregate;
+      let aggregateCalls = 0;
+
+      try {
+        ImportedSample.aggregate = function() {
+          return {
+            exec: function() {
+              aggregateCalls += 1;
+              return Promise.resolve([]);
+            }
+          };
+        };
+
+        const first = await importedHistory.getChartData();
+        const second = await importedHistory.getChartData();
+
+        expect(second).toBe(first);
+        expect(aggregateCalls).toEqual(1);
+      } finally {
+        ImportedSample.aggregate = originalAggregate;
+      }
+    });
+
     it('elects one cluster worker per history bucket', async function() {
       const originalUpdateOne = JobState.updateOne;
       const sampledAt = new Date('2026-09-03T12:00:00.000Z');
