@@ -11,7 +11,8 @@ Own the Defcoin DC903 explorer source and its current public-page copy.
 
 # Local contracts
 
-- Follow `docs/WRITING_STYLE.md` for new prose and edits to current page copy. Preserve existing release history, dated changelogs, and historical site records.
+- Follow `docs/WRITING_STYLE.md` for new prose and edits to current page copy, including community history. Preserve existing release notes and dated changelogs.
+- Cite primary sources for historical claims. Keep archive capture dates distinct from launch, shutdown, and continuous-uptime claims. Record a research date separately from each endpoint's last live check.
 - Keep URLs, identifiers, versions, evidence dates, form controls, template variables, and security warnings intact during text edits.
 - Keep the faucet unregistered and unavailable until a separate payout-safety review approves it.
 - Invoke MongoDB backup tools through the shell-free helper. Keep passwords out of command arguments and remove the private temporary config on exit or spawn failure.
@@ -25,9 +26,8 @@ Own the Defcoin DC903 explorer source and its current public-page copy.
 # Verification
 
 - `git diff --check`
-- `node ./node_modules/jasmine/bin/jasmine.js test/explorerSpec.js test/securitySpec.js test/copySpec.js`
+- `node ./node_modules/jasmine/bin/jasmine.js test/explorerSpec.js test/securitySpec.js test/copySpec.js test/historySpec.js`
 - Compile every Pug template; run the operations health and web smoke checks on staging and production.
 - Run dependency and secret scans before pushing.
 
 # Child DOX Index
-

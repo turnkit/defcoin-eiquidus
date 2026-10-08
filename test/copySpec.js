@@ -46,17 +46,6 @@ describe('public-page copy contracts', function() {
     });
   });
 
-  const history = {
-    'views/history.pug': '8ba284cd95f84ca1d9b75cf517cc0fbe4ae753dab736e85f6f138ed6537130d6',
-    'lib/defcoin_history_data.js': 'b8dd40704a11570ecd560c9708c2647dbb50d36250b5fb6ccbc0b27dd999d3d4'
-  };
-  Object.keys(history).forEach(function(name) {
-    it('leaves historical content unchanged: ' + name, function() {
-      const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex');
-      expect(digest).toEqual(history[name]);
-    });
-  });
-
   it('compiles every public Pug template', function() {
     fs.readdirSync(path.join(root, 'views')).filter(function(name) {
       return name.endsWith('.pug');
@@ -74,4 +63,3 @@ describe('public-page copy contracts', function() {
     expect(source).toContain('disconnect from the network');
   });
 });
-

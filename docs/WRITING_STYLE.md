@@ -1,6 +1,6 @@
 # Writing standard
 
-Use this standard for new prose and edits to current user-facing text. Existing release history, dated changelogs, historical site records, raw logs, quotations, and third-party notices stay unchanged unless the owner explicitly requests a correction.
+Use this standard for new prose and edits to current user-facing text, including community history. Existing release notes, dated changelogs, raw logs, quotations, and third-party notices stay unchanged unless the owner explicitly requests a correction.
 
 ## Rules
 
@@ -33,4 +33,3 @@ These four repositories informed this synthesis. Their content is reference mate
 The review found no malicious tool instructions in the reviewed content. Guide entry points, referenced rules, scripts, and workflows were inspected. The first three repositories' generated evaluation archives received a pattern scan rather than a full line-by-line review; all six tracked files in the fourth repository were read. One suggested installer advertises telemetry and was not used. Claims of system-level authority and requirements to invent anecdotes or force a prose shape were rejected.
 
 The workspace root owns this standard. Repositories carry identical portable copies for use outside this workspace; update them together and check their hashes.
-
