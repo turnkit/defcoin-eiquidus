@@ -23,14 +23,14 @@ block content
           .alert.alert-warning(role='alert') Mining stats are unavailable right now: #{miningStatsError}
         else if miningStats
           p.defcoin-helper
-            | Active rows are checked from live P2Pool APIs. The old DefcoinStats detail pages are treated as historical hints because several retired pools still show stale nonzero hashrate values there.
+            | Active rows use live P2Pool API checks. Several retired pools still show stale nonzero hashrates on DefcoinStats, so those pages are historical references.
 
           .defcoin-hashrate-history-card.mb-4
             .defcoin-hashrate-history-head
               div
                 h3 Recent Hashrate Timeline
                 p.defcoin-helper.mb-0
-                  | Lightweight 15-minute samples from answering P2Pool APIs. This chart starts when this server's sampler was enabled; older imported DefcoinStats data appears in the historical archive below. Yellow shows the estimated whole Defcoin network. Endpoint lines show recent local contribution and stop when a pool's share counter has not advanced for more than an hour.
+                  | P2Pool APIs are sampled every 15 minutes. This chart begins when this server's sampler was enabled; earlier DefcoinStats data is in the archive below. Yellow estimates the whole Defcoin network. Endpoint lines show local hashrate and stop after an hour without a new share.
               if hashrateHistory && hashrateHistory.updatedAt
                 span.defcoin-table-meta.defcoin-latest-sample Latest sample #{new Date(hashrateHistory.updatedAt).toLocaleString()}
             .defcoin-hashrate-chart-shell

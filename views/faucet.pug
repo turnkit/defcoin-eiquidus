@@ -7,7 +7,7 @@ block page_intro
         .explorer-hero-copy
           h3#page-title Defcoin Faucet
           .sub-page-header.text-muted
-            | A rate-limited public faucet with a dedicated donation chest, daily abuse controls, and a disabled-by-default payout switch until the chest is configured and funded.
+            | Faucet payouts are disabled by default until a dedicated donation chest is configured and funded. Daily claim limits apply when payouts are enabled.
         +defcoinPageBranding('explorer-hero-mark')
     .cardSpacer.clearfix
 
@@ -25,7 +25,7 @@ block content
           if faucetStatus != null && faucetStatus.config != null && faucetStatus.config.enabled == true
             | The faucet is enabled.
           else
-            | The faucet is built but currently disabled until a dedicated payout chest is configured and funded.
+            | Payouts are disabled until a dedicated donation chest is configured and funded.
         .defcoin-status-grid
           .defcoin-stat-card
             span.stat-label Faucet Enabled
@@ -41,9 +41,9 @@ block content
             span.stat-value#faucetRecentClaims= (faucetStatus != null ? faucetStatus.recentApprovedClaimCount : 'Unavailable')
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | Claims are limited to one successful payout per day per IP, subnet, browser fingerprint, and destination address. Repeated abuse can escalate to a ban entry.
+            | Each IP, subnet, browser fingerprint, and destination address is limited to one successful payout per day. Repeated abuse can lead to a ban.
           p.mb-2.defcoin-helper
-            | The payout formula is reserve-aware: it only spends above the configured floor, clamps each claim between safe minimum and maximum values, and can shrink when the chest is low or claimant volume rises.
+            | Payouts keep the configured reserve intact and stay within the configured minimum and maximum. Claims can shrink as the balance falls or demand rises.
           p.mb-0.defcoin-helper
             | Donation chest address:
             if faucetStatus != null && faucetStatus.chest != null && faucetStatus.chest.donationAddress
@@ -62,5 +62,5 @@ block content
               input#faucetAddress.form-control(type='text', placeholder='Enter a Defcoin wallet address')
           .defcoin-pill-row
             button#faucetSubmit.btn.btn-primary(type='submit') Request Faucet Coins
-            span.defcoin-tool-subtext The live claim flow is implemented now, but disabled mode will reject requests cleanly until the chest is activated.
+            span.defcoin-tool-subtext Requests are rejected while payouts are disabled.
         #faucetClaimResult.defcoin-tool-subtext.mt-3 Waiting for a request.

@@ -7,7 +7,7 @@ block page_intro
         .explorer-hero-copy
           h3#page-title Defcoin Paper Wallet
           .sub-page-header.text-muted
-            | Client-side key generation only. No server-side wallet creation, no CDN dependency, and a direct path to save the generator for offline use.
+            | Generate keys in your browser, or download the bundle for offline use. The generator uses local assets.
         +defcoinPageBranding('explorer-hero-mark')
     .cardSpacer.clearfix
 
@@ -22,8 +22,8 @@ block content
   - walletTabMeta.paperwallet = { label: 'Printable Paper Wallet', summary: 'Create a ready-to-print sheet with QR codes for cold storage or gifting.' }
   - walletTabMeta.bulkwallet = { label: 'Bulk Wallets', summary: 'Generate many receiving addresses at once for labels, reserves, or distribution.' }
   - walletTabMeta.brainwallet = { label: 'Brain Wallet', summary: 'Derive a wallet from a passphrase. Only use this if you understand the security risk.' }
-  - walletTabMeta.vanitywallet = { label: 'Vanity Wallet', summary: 'Build a custom-looking address prefix using the split-key workflow.' }
-  - walletTabMeta.splitwallet = { label: 'Split Wallet', summary: 'Split one private key into multiple shares for safer backup handling.' }
+  - walletTabMeta.vanitywallet = { label: 'Vanity Wallet', summary: 'Generate an address with a chosen prefix using the split-key workflow.' }
+  - walletTabMeta.splitwallet = { label: 'Split Wallet', summary: 'Split one private key into multiple backup shares.' }
   - walletTabMeta.detailwallet = { label: 'Wallet Details', summary: 'Inspect an existing key, convert formats, or decrypt BIP38 output.' }
   - var selectedWalletMeta = walletTabMeta[selectedWalletTab] || walletTabMeta.paperwallet || walletTabMeta.singlewallet
   .col-12
@@ -33,7 +33,7 @@ block content
       .card-body
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | Pick the tool that matches what you need to do. The wrapper below simply opens the same Defcoin generator in the right mode first, so you do not have to hunt through the internal tabs.
+            | Choose a mode to open that tool in the Defcoin generator.
           .defcoin-pill-row
             each walletTab in walletTabs
               - const tabMeta = walletTabMeta[walletTab]
@@ -48,11 +48,11 @@ block content
       .card-body
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | This page wraps a local Defcoin fork of the MIT-licensed liteaddress.org generator. The safest workflow is still to download the local bundle, extract it to a folder, disconnect from the network, and only then create and print paper wallets.
+            | This is a local Defcoin fork of the MIT-licensed liteaddress.org generator. For offline use, download and extract the bundle, disconnect from the network, then create and print your paper wallets.
           p.mb-2.defcoin-helper
             | Do not generate a paper wallet on a machine you do not trust. Anyone who gets the private key gets the coins.
           p.mb-0.defcoin-helper
-            | The generator below stays client-side. The downloadable bundle includes the HTML tool plus the Defcoin print artwork it now uses.
+            | Keys are generated in your browser. The bundle includes the HTML tool and Defcoin print artwork.
         .defcoin-callout.mt-3
           p.mb-2.defcoin-helper
             | Source ancestry:
@@ -60,7 +60,7 @@ block content
             |  and
             a.ms-1(href='https://github.com/pointbiz/bitaddress.org', target='_blank', rel='noopener') pointbiz/bitaddress.org
           p.mb-0.defcoin-helper
-            | This local fork is retargeted for Defcoin addresses and keys. The public wrapper stays inside the DC903 site shell, while the downloadable bundle stays client-side and offline-capable after extraction.
+            | This fork generates Defcoin addresses and keys. The extracted bundle works offline.
         .defcoin-pill-row
           a.btn.btn-primary(href=paperWalletGeneratorPath, target='_blank', rel='noopener') Open This Tool Only
           a.btn.btn-outline-secondary(href=paperWalletBundleDownloadPath, download='defcoin-paperwallet-bundle.zip') Download Local Bundle

@@ -1483,14 +1483,14 @@ block content
         strong  host:port
         |  is known. The
         strong  Port
-        |  column below shows the actual port this explorer saw for each connection, which helps when an operator is forwarding or remapping traffic.
+        |  column shows the port observed for each connection, including forwarded or remapped ports.
       .alert.alert-info.py-2.mb-3(role='note')
         strong Dual magic header transition:
         |  this pool supports both the legacy Defcoin/Litecoin-family P2P message header
         strong  fbc0b6db
         |  and the new Defcoin-specific header
         strong  defc014e
-        | . These magic bytes are the first network boundary check in each peer message. Supporting both keeps older Defcoin wallets connected during migration, while the goal is to move users to modern wallets with Defcoin-only magic enabled so nodes reject unrelated Litecoin-family traffic sooner, reduce wasted handshakes, and lower bandwidth and network-pollution overhead.
+        | . Each peer message is checked against these bytes first. Dual support keeps older Defcoin wallets connected during migration. Defcoin-only magic lets newer nodes reject unrelated Litecoin-family traffic at that check.
       #network-connection-summary.alert.alert-secondary.defcoin-connection-summary.d-none(role='status')
       ul.nav.nav-tabs(role='tablist')
         if settings.network_page.connections_table.enabled

@@ -7,7 +7,7 @@ block page_intro
         .explorer-hero-copy
           h3#page-title Defcoin Pool
           .sub-page-header.text-muted
-            | The Defcoin pool now has its own short path at /pool while keeping the same integrated navigation shell as the explorer.
+            | DC903 P2Pool activity, miner statistics, and found Defcoin blocks.
         +defcoinPageBranding('explorer-hero-mark')
     .cardSpacer.clearfix
 
@@ -21,9 +21,9 @@ block content
       .card-body
         #pool-api-alert.alert.alert-warning.d-none(role='alert')
         .defcoin-callout
-          p.mb-2.defcoin-helper These numbers come from this server's p2pool node. If that service goes down, or if the Defcoin node stops updating, the warning banner above will say so.
+          p.mb-2.defcoin-helper These numbers come from this server's P2Pool node. A warning appears if P2Pool goes down or the Defcoin node stops updating.
           p.mb-2.defcoin-helper
-            | Global Pool Hashrate means everyone mining in the wider p2pool pool. Local Pool Hashrate means only miners pointed at this DC903 server. Network Hashrate means the whole Defcoin network, not just p2pool. When mining is quiet, this page shows inactive labels instead of pretending old numbers are still current.
+            | Global Pool Hashrate covers all P2Pool miners. Local Pool Hashrate covers miners connected to DC903. Network Hashrate estimates the whole Defcoin network. Inactive labels mark quiet mining periods.
           p#poolActivityNote.mb-2.defcoin-helper Checking recent pool activity.
           .defcoin-pill-row
             span.defcoin-pill
