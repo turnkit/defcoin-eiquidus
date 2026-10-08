@@ -124,12 +124,27 @@ function delete_database(mongoose, cb) {
 }
 
 function restore_backup(mongoose, backupPath, extractedPath, gZip) {
-  const { exec } = require('child_process');
+  const { spawnMongoTool } = require('../lib/mongodb_tool');
 
   console.log(`${settings.localization.restoring_backup}.. ${settings.localization.please_wait}..`);
 
-  // restore mongo database from backup
-  const restoreProcess = exec(`mongorestore --host="${settings.dbsettings.address}" --port="${settings.dbsettings.port}" --username="${settings.dbsettings.user}" --password="${settings.dbsettings.password}" --authenticationDatabase="${settings.dbsettings.database}" ${(gZip ? `--gzip --archive="${backupPath}"` : `"${extractedPath}"`)}${singleCollection == null || singleCollection == '' ? '' : ` --drop --db explorerdb --collection ${singleCollection}`}`);
+  const restoreArgs = [
+    `--host=${settings.dbsettings.address}`,
+    `--port=${settings.dbsettings.port}`,
+    `--username=${settings.dbsettings.user}`,
+    `--authenticationDatabase=${settings.dbsettings.database}`
+  ];
+
+  if (gZip)
+    restoreArgs.push('--gzip', `--archive=${backupPath}`);
+  else
+    restoreArgs.push(extractedPath);
+
+  if (singleCollection != null && singleCollection != '')
+    restoreArgs.push('--drop', `--db=${settings.dbsettings.database}`, '--collection', singleCollection);
+
+  // Keep the password out of process arguments and do not invoke a shell.
+  const restoreProcess = spawnMongoTool('mongorestore', restoreArgs, settings.dbsettings.password);
 
   restoreProcess.stdout.on('data', (data) => {
     console.log(data);

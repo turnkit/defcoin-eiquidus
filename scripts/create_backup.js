@@ -115,10 +115,21 @@ if (!fs.existsSync(path.join(backupPath, `${backupFilename}${archiveSuffix}`))) 
           // all tests passed. OK to run backup
           console.log(`${settings.localization.script_launched }: ${process.pid}`);
 
-          const { exec } = require('child_process');
+          const { spawnMongoTool } = require('../lib/mongodb_tool');
+          const backupArgs = [
+            `--host=${settings.dbsettings.address}`,
+            `--port=${settings.dbsettings.port}`,
+            `--username=${settings.dbsettings.user}`,
+            `--db=${settings.dbsettings.database}`,
+            `--archive=${path.join(backupPath, backupFilename + archiveSuffix)}`,
+            '--gzip'
+          ];
 
-          // execute backup
-          const backupProcess = exec(`mongodump --host="${settings.dbsettings.address}" --port="${settings.dbsettings.port}" --username="${settings.dbsettings.user}" --password="${settings.dbsettings.password}" --db="${settings.dbsettings.database}" --archive="${path.join(backupPath, backupFilename + archiveSuffix)}" --gzip${singleCollection == null || singleCollection == '' ? '' : ` --collection ${singleCollection}`}`);
+          if (singleCollection != null && singleCollection != '')
+            backupArgs.push('--collection', singleCollection);
+
+          // Keep the password out of process arguments and do not invoke a shell.
+          const backupProcess = spawnMongoTool('mongodump', backupArgs, settings.dbsettings.password);
 
           backupProcess.stdout.on('data', (data) => {
             console.log(data);

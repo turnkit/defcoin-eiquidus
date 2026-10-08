@@ -284,6 +284,52 @@ describe('security boundaries', function() {
     });
   });
 
+  describe('MongoDB backup tools', function() {
+    const EventEmitter = require('events');
+    const fs = require('fs');
+    const mongodbTool = require('../lib/mongodb_tool');
+
+    it('keeps credentials out of argv and treats metacharacters as data', function() {
+      const child = new EventEmitter();
+      const secret = 'not-a-real-password; $(touch /tmp/never-run)';
+      const archiveArg = '--archive=/tmp/archive;touch /tmp/also-never-run';
+      let invocation;
+
+      mongodbTool.spawnMongoTool('mongodump', [archiveArg], secret, function(command, args, options) {
+        invocation = { command, args, options };
+        return child;
+      });
+
+      expect(invocation.command).toEqual('mongodump');
+      expect(invocation.options.shell).toBeFalse();
+      expect(invocation.args).toContain(archiveArg);
+      expect(invocation.args.join(' ')).not.toContain(secret);
+
+      const configArg = invocation.args.find(function(arg) { return arg.startsWith('--config='); });
+      const configPath = configArg.substring('--config='.length);
+      expect(fs.statSync(configPath).mode & 0o777).toEqual(0o600);
+      expect(fs.readFileSync(configPath, 'utf8')).toEqual('password: ' + JSON.stringify(secret) + '\n');
+
+      child.emit('exit', 0, null);
+      expect(fs.existsSync(configPath)).toBeFalse();
+    });
+
+    it('allows only the two intended MongoDB tools', function() {
+      expect(function() {
+        mongodbTool.spawnMongoTool('sh', ['-c', 'true'], 'secret');
+      }).toThrowError(/Unsupported MongoDB tool/);
+    });
+
+    it('routes backup and restore data through the shell-free helper', function() {
+      ['scripts/create_backup.js', 'scripts/restore_backup.js'].forEach(function(filename) {
+        const source = fs.readFileSync(filename, 'utf8');
+        expect(source).toContain('spawnMongoTool');
+        expect(source).not.toContain('--password=');
+        expect(source).not.toMatch(/exec\(`mongo(?:dump|restore)/);
+      });
+    });
+  });
+
   describe('production credential gate', function() {
     const settings = require('../lib/settings');
     let original;
