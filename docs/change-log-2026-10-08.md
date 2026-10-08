@@ -1,5 +1,7 @@
 # Changes, 8 October 2026
 
+Public addendum: [Security and code-quality review](https://defcoin.dc903.org/explorer/security-review). It identifies model/audit provenance, hardening and code changes, verification, incomplete coverage, and remaining work.
+
 ## Page text
 
 Shortened the current Pool, Network, Mine, Mining Stats, Paper Wallet, QR Generator, Reward Calculator, and inactive Faucet templates. The mining page now describes the listed x86_64 downloads without claiming that no native Apple Silicon wallet exists.
@@ -27,3 +29,13 @@ The revision removes the disabled faucet from current links and distinguishes ar
 Browser testing found that the QR script targeted a missing `qrPreview` image while the template provided a `qrcode` container. The script now uses the bundled client-side QR library. It updates the preview as fields change, clears it when the address is blank, and recovers after an overlong payment URI.
 
 Six regression tests cover the container, payload encoding, blank-address clearing, reset, failure recovery, and clipboard copy. Generating a QR does not send a payment.
+
+## UI and audit addendum
+
+Kept the existing dark/gold/cyan Defcoin identity. The community story now has a dated source rail, readable text measure and spacing, semantic headings, and contents links. Archive tables retain all columns and evidence, with named keyboard-scrollable regions. Shared focus and scrollbar tokens include forced-colors behavior; no decorative animation, remote font, or new application dependency was added.
+
+The security addendum is linked in navigation and near the top of other pages. Its model names come from execution records. It discloses incomplete September deep scans, the current sequential-review limitation, unpatched-but-mitigated CVEs, legacy CSP constraints, and the pool transaction-feed/block-label mismatch. It does not claim an independent penetration test, a malware-free codebase, or full WCAG conformance.
+
+`DESIGN.md` documents the USWDS/W3C rationale and mirrors runtime tokens. `UX-CONTRACT.md` records the unchanged tool behavior and scoped verification boundary.
+
+Verification before release packaging: 85 focused offline specs passed with seeds 56081 and 90126. The full suite ran 92 specs; the same Dexomy/Dextrade external-provider checks failed, with no new local regression. Production npm audit reported zero advisories. The scoped premium static audit and official DESIGN.md 0.4.0 lint reported zero errors/warnings. Pug compile/render/escaping tests cover the templates the generic CSS auditor cannot parse.

@@ -4,6 +4,7 @@ const settings = require('../lib/settings');
 const db = require('../lib/database');
 const lib = require('../lib/explorer');
 const defcoinHistoryData = require('../lib/defcoin_history_data');
+const defcoinSecurityReviewData = require('../lib/defcoin_security_review_data');
 const defcoinMiningCatalog = require('../lib/defcoin_mining_catalog');
 const defcoinStatsClient = require('../lib/defcoin_stats_client');
 const defcoinHashrateHistory = require('../lib/defcoin_hashrate_history');
@@ -619,6 +620,16 @@ router.get(['/history', '/standalone/history'], function(req, res) {
     'history',
     settings.coin.name + ' History',
     Object.assign({}, defcoinHistoryData)
+  );
+});
+
+router.get(['/security-review', '/standalone/security-review'], function(req, res) {
+  render_integrated_page(
+    res,
+    'security_review',
+    'security-review',
+    settings.coin.name + ' Security Review',
+    { review: defcoinSecurityReviewData }
   );
 });
 

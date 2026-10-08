@@ -1,0 +1,15 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["public/css"],
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Scrollbar"],
+  "requiredCommands": ["offline", "render", "build"],
+  "commands": {
+    "offline": "node ./node_modules/jasmine/bin/jasmine.js test/explorerSpec.js test/securitySpec.js test/copySpec.js test/historySpec.js test/browserToolsSpec.js test/uiPolishSpec.js",
+    "render": "node ./node_modules/jasmine/bin/jasmine.js test/copySpec.js test/historySpec.js test/uiPolishSpec.js",
+    "build": "../../../../dc903-defcoin-ops/deployment/staging-ubuntu24-2026-09-04/build-eiquidus-release . /private/tmp/defcoin-ui-release-20261008.tar Darkly"
+  },
+  "evidence": {
+    "failurePaths": "test/uiPolishSpec.js"
+  }
+}
