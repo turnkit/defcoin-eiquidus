@@ -569,9 +569,9 @@
       const blockUrl = `${explorerBase}/block/${encodeURIComponent(hash)}`;
 
       return `<tr>
-        <td class="text-center">${formatRelativeTime(block.ts)}</td>
-        <td class="text-center">${formatTimestamp(block.ts)}</td>
-        <td class="text-center"><a href="${blockUrl}">${height}</a></td>
+        <td class="text-center">${escapeHtml(formatRelativeTime(block.ts))}</td>
+        <td class="text-center">${escapeHtml(formatTimestamp(block.ts))}</td>
+        <td class="text-center"><a href="${blockUrl}">${escapeHtml(height)}</a></td>
       </tr>`;
     });
 

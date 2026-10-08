@@ -201,6 +201,32 @@ describe('security boundaries', function() {
       expect(source).toContain('return chartInFlight;');
     });
 
+    it('caches imported historical charts after the cold load', async function() {
+      const ImportedSample = require('../models/defcoinstatshistoricalsample');
+      const importedHistory = require('../lib/defcoinstats_history');
+      const originalAggregate = ImportedSample.aggregate;
+      let aggregateCalls = 0;
+
+      try {
+        ImportedSample.aggregate = function() {
+          return {
+            exec: function() {
+              aggregateCalls += 1;
+              return Promise.resolve([]);
+            }
+          };
+        };
+
+        const first = await importedHistory.getChartData();
+        const second = await importedHistory.getChartData();
+
+        expect(second).toBe(first);
+        expect(aggregateCalls).toEqual(1);
+      } finally {
+        ImportedSample.aggregate = originalAggregate;
+      }
+    });
+
     it('elects one cluster worker per history bucket', async function() {
       const originalUpdateOne = JobState.updateOne;
       const sampledAt = new Date('2026-09-03T12:00:00.000Z');
@@ -255,6 +281,52 @@ describe('security boundaries', function() {
       expect(inputguard.constantTimeSecretEqual('', '')).toBeFalse();
       expect(inputguard.constantTimeSecretEqual('configured-secret', 'wrong-secret')).toBeFalse();
       expect(inputguard.constantTimeSecretEqual('configured-secret', 'configured-secret')).toBeTrue();
+    });
+  });
+
+  describe('MongoDB backup tools', function() {
+    const EventEmitter = require('events');
+    const fs = require('fs');
+    const mongodbTool = require('../lib/mongodb_tool');
+
+    it('keeps credentials out of argv and treats metacharacters as data', function() {
+      const child = new EventEmitter();
+      const secret = 'not-a-real-password; $(touch /tmp/never-run)';
+      const archiveArg = '--archive=/tmp/archive;touch /tmp/also-never-run';
+      let invocation;
+
+      mongodbTool.spawnMongoTool('mongodump', [archiveArg], secret, function(command, args, options) {
+        invocation = { command, args, options };
+        return child;
+      });
+
+      expect(invocation.command).toEqual('mongodump');
+      expect(invocation.options.shell).toBeFalse();
+      expect(invocation.args).toContain(archiveArg);
+      expect(invocation.args.join(' ')).not.toContain(secret);
+
+      const configArg = invocation.args.find(function(arg) { return arg.startsWith('--config='); });
+      const configPath = configArg.substring('--config='.length);
+      expect(fs.statSync(configPath).mode & 0o777).toEqual(0o600);
+      expect(fs.readFileSync(configPath, 'utf8')).toEqual('password: ' + JSON.stringify(secret) + '\n');
+
+      child.emit('exit', 0, null);
+      expect(fs.existsSync(configPath)).toBeFalse();
+    });
+
+    it('allows only the two intended MongoDB tools', function() {
+      expect(function() {
+        mongodbTool.spawnMongoTool('sh', ['-c', 'true'], 'secret');
+      }).toThrowError(/Unsupported MongoDB tool/);
+    });
+
+    it('routes backup and restore data through the shell-free helper', function() {
+      ['scripts/create_backup.js', 'scripts/restore_backup.js'].forEach(function(filename) {
+        const source = fs.readFileSync(filename, 'utf8');
+        expect(source).toContain('spawnMongoTool');
+        expect(source).not.toContain('--password=');
+        expect(source).not.toMatch(/exec\(`mongo(?:dump|restore)/);
+      });
     });
   });
 
@@ -351,6 +423,44 @@ describe('security boundaries', function() {
       expect(result.ok).toBeFalse();
       expect(result.statusCode).toEqual(503);
       expect(FaucetClaim.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('pool page markup escaping', function() {
+    it('escapes every recent-block value inserted into table markup', function() {
+      const fs = require('fs');
+      const source = fs.readFileSync('public/js/defcoin-pool.js', 'utf8');
+      const start = source.indexOf('function renderBlockTable(recentBlocks)');
+      const end = source.indexOf('\n  function pagerAvailableWidth()', start);
+      const renderBlockTable = source.slice(start, end);
+
+      expect(start).toBeGreaterThan(-1);
+      expect(renderBlockTable).toContain('${escapeHtml(formatRelativeTime(block.ts))}');
+      expect(renderBlockTable).toContain('${escapeHtml(formatTimestamp(block.ts))}');
+      expect(renderBlockTable).toContain('${escapeHtml(height)}');
+      expect(renderBlockTable).not.toContain('>${height}</a>');
+    });
+  });
+
+  describe('peer geolocation resilience', function() {
+    it('bounds the external lookup and does not abort peer sync when enrichment fails', function() {
+      const fs = require('fs');
+      const explorerSource = fs.readFileSync('lib/explorer.js', 'utf8');
+      const lookupStart = explorerSource.indexOf('get_geo_location: function(address, cb)');
+      const lookupEnd = explorerSource.indexOf('\n  is_unique:', lookupStart);
+      const lookupSource = explorerSource.slice(lookupStart, lookupEnd);
+      const syncSource = fs.readFileSync('scripts/sync.js', 'utf8');
+      const syncStart = syncSource.indexOf('lib.get_geo_location(address');
+      const syncEnd = syncSource.indexOf('\n                    });', syncStart);
+      const geolocationSync = syncSource.slice(syncStart, syncEnd);
+
+      expect(lookupStart).toBeGreaterThan(-1);
+      expect(lookupSource).toContain('timeout: GEOLOCATION_TIMEOUT_MS');
+      expect(lookupSource).toContain('maxResponseSize: GEOLOCATION_MAX_RESPONSE_BYTES');
+      expect(lookupSource).toContain('followRedirect: false');
+      expect(syncStart).toBeGreaterThan(-1);
+      expect(geolocationSync).not.toContain('exit(1)');
+      expect(geolocationSync).toContain('peerList = peerList.concat(newPeers)');
     });
   });
 
