@@ -15,6 +15,7 @@ Own the Defcoin DC903 explorer source and its current public-page copy.
 - Cite primary sources for historical claims. Keep archive capture dates distinct from launch, shutdown, and continuous-uptime claims. Record a research date separately from each endpoint's last live check.
 - Keep URLs, identifiers, versions, evidence dates, form controls, template variables, and security warnings intact during text edits.
 - Keep the faucet unregistered and unavailable until a separate payout-safety review approves it.
+- Generate payment QR images in the browser using the bundled QR library and the template's `qrcode` container. Do not send payment labels or messages to an external QR service. Clear stale previews when the address is empty and show a recoverable message if encoding fails.
 - Invoke MongoDB backup tools through the shell-free helper. Keep passwords out of command arguments and remove the private temporary config on exit or spawn failure.
 - Build immutable release archives with the operations repository's theme-CSS packaging helper. Test staging before switching production; retain the previous release for rollback.
 
@@ -26,7 +27,7 @@ Own the Defcoin DC903 explorer source and its current public-page copy.
 # Verification
 
 - `git diff --check`
-- `node ./node_modules/jasmine/bin/jasmine.js test/explorerSpec.js test/securitySpec.js test/copySpec.js test/historySpec.js`
+- `node ./node_modules/jasmine/bin/jasmine.js test/explorerSpec.js test/securitySpec.js test/copySpec.js test/historySpec.js test/browserToolsSpec.js`
 - Compile every Pug template; run the operations health and web smoke checks on staging and production.
 - Run dependency and secret scans before pushing.
 

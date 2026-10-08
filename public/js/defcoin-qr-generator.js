@@ -1,4 +1,6 @@
 (function() {
+  let qrCode = null;
+
   function buildUri(address, amount, label, message) {
     const params = new URLSearchParams();
     if (amount) params.set('amount', amount);
@@ -15,13 +17,14 @@
     const label = document.getElementById('qrLabel').value.trim();
     const message = document.getElementById('qrMessage').value.trim();
     const uriNode = document.getElementById('qrUri');
-    const previewNode = document.getElementById('qrPreview');
+    const qrNode = document.getElementById('qrcode');
 
     if (!address) {
       uriNode.textContent = 'Enter a Defcoin address to generate a payment QR code.';
-      if (previewNode) {
-        previewNode.removeAttribute('src');
-        previewNode.setAttribute('alt', 'QR preview unavailable until a Defcoin address is entered');
+      if (qrNode) {
+        qrNode.textContent = '';
+        qrNode.hidden = true;
+        qrCode = null;
       }
       return;
     }
@@ -29,9 +32,22 @@
     const uri = buildUri(address, amount, label, message);
     uriNode.textContent = uri;
 
-    if (previewNode) {
-      previewNode.setAttribute('src', '/qr/' + encodeURIComponent(uri));
-      previewNode.setAttribute('alt', 'Defcoin payment QR preview for ' + address);
+    if (qrNode) {
+      qrNode.hidden = false;
+      try {
+        if (!qrCode) {
+          qrNode.textContent = '';
+          qrCode = new QRCode(qrNode, {
+            width: 256,
+            height: 256,
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        }
+        qrCode.makeCode(uri);
+      } catch (error) {
+        qrCode = null;
+        qrNode.textContent = 'QR preview could not be generated. Shorten the label or message and try again.';
+      }
     }
   }
 

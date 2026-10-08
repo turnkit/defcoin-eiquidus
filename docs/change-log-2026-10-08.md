@@ -12,7 +12,7 @@ Added pre-edit template fingerprints and checks that preserve historical identif
 
 ## Writing
 
-New text follows `WRITING_STYLE.md`, which combines the four reviewed guides. Existing release history and dated changelogs remain unchanged.
+New text follows `WRITING_STYLE.md`, which combines the four reviewed guides. Existing release notes and dated changelogs remain unchanged.
 
 Deployment results belong in the operations handoff. The faucet remains unregistered and unavailable.
 
@@ -21,3 +21,9 @@ Deployment results belong in the operations handoff. The faucet remains unregist
 Replaced the link-directory introduction with a source-linked account of Defcoin's conference roots, Coindroids, wallet maintenance, and community mining. The page keeps its archive tables and on-chain evidence.
 
 The revision removes the disabled faucet from current links and distinguishes archive captures, dated live checks, and publication dates. A pool's timeline ends at its last recorded check instead of extending automatically to the current year.
+
+## QR preview
+
+Browser testing found that the QR script targeted a missing `qrPreview` image while the template provided a `qrcode` container. The script now uses the bundled client-side QR library. It updates the preview as fields change, clears it when the address is blank, and recovers after an overlong payment URI.
+
+Six regression tests cover the container, payload encoding, blank-address clearing, reset, failure recovery, and clipboard copy. Generating a QR does not send a payment.
