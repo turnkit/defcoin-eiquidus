@@ -11,7 +11,7 @@ block page_intro
     #page-header-container.explorer-hero
       #page-title-container.explorer-hero-brand
         .explorer-hero-copy
-          h3#page-title Defcoin History
+          h1#page-title Defcoin History
           .sub-page-header.text-muted
             | How Defcoin was used at DEF CON, how its software and mining community changed, and where the surviving records can be found.
         +defcoinPageBranding('explorer-hero-mark')
@@ -19,24 +19,41 @@ block page_intro
 
 block content
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong The community story
+        h2#community-story The community story
       .card-body
+        nav.defcoin-reading-nav(aria-label='On this history page')
+          ul
+            li
+              a(href='#community-story') Community story
+            li
+              a(href='#community-links') Source directory
+            li
+              a(href='#pool-evidence') Pool evidence
+            li
+              a(href='#chain-records') On-chain records
         .defcoin-callout
           p.mb-2.defcoin-helper
             | Defcoin is a cryptocurrency used by members of the DEF CON community to learn about mining and transactions. It has its own blockchain and Litecoin-derived software. Conference talks, the Coindroids game, and community-run services left the records collected here.
           p.mb-0.defcoin-helper
             | History researched on #{researchUpdatedOn}. The original link inventory dates to #{generatedOn}; each service check and archive capture keeps its own date. Unknown dates remain marked as unknown.
-        each chapter in communityStory
-          section.mt-4
-            h4 #{chapter.date}: #{chapter.title}
-            each paragraph in chapter.paragraphs
-              p.defcoin-helper= paragraph
-            ul.defcoin-compact-link-list
-              each source in chapter.sources
-                li
-                  a(href=source.url)= source.label
+        .defcoin-community-story
+          each chapter, index in communityStory
+            section.defcoin-story-chapter(aria-labelledby=`story-${index}`)
+              .defcoin-story-date
+                if /^\d{4}-\d{2}-\d{2}$/.test(chapter.date)
+                  time(datetime=chapter.date)= chapter.date
+                else
+                  span= chapter.date
+              .defcoin-story-copy
+                h3(id=`story-${index}`)= chapter.title
+                each paragraph in chapter.paragraphs
+                  p.defcoin-helper= paragraph
+                ul.defcoin-compact-link-list
+                  each source in chapter.sources
+                    li
+                      a(href=source.url)= source.label
         .defcoin-page-grid.two-up
           .defcoin-stat-card
             span.stat-label Current DC903 pages
@@ -51,16 +68,17 @@ block content
                 li= note
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Community links and further reading
+        h2#community-links Community links and further reading
       .card-body
-        .table-responsive
+        p.defcoin-scroll-hint Wide tables scroll sideways. Tab to a table, then use the arrow keys.
+        .table-responsive(role='region', aria-labelledby='community-links', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
-                th Link
-                th Notes
+                th(scope='col') Link
+                th(scope='col') Notes
             tbody
               each item in activeReferences
                 tr
@@ -70,20 +88,20 @@ block content
 
   if activePools && activePools.length
     .col-12
-      .card.card-default.border-0.cardSpacer
+      .card.card-default.border-0.cardSpacer.defcoin-reading
         .card-header
-          strong Pools with recorded live checks
+          h2#checked-pools Pools with recorded live checks
         .card-body
-          .table-responsive
+          .table-responsive(role='region', aria-labelledby='checked-pools', tabindex='0')
             table.table.table-bordered.table-striped.table-hover
               thead
                 tr
-                  th Pool
-                  th Operator
-                  th Website
-                  th Stratum
-                  th Last live check
-                  th Notes
+                  th(scope='col') Pool
+                  th(scope='col') Operator
+                  th(scope='col') Website
+                  th(scope='col') Stratum
+                  th(scope='col') Last live check
+                  th(scope='col') Notes
               tbody
                 each item in activePools
                   tr
@@ -105,14 +123,14 @@ block content
 
   if poolTimeline && poolTimeline.items && poolTimeline.items.length
     .col-12
-      .card.card-default.border-0.cardSpacer.defcoin-pool-timeline-card
+      .card.card-default.border-0.cardSpacer.defcoin-pool-timeline-card.defcoin-reading
         .card-header
-          strong Pool evidence timeline
+          h2#pool-evidence Pool evidence timeline
         .card-body
           .defcoin-callout
             p.mb-0.defcoin-helper
               | Bars connect the earliest and latest evidence recorded here. They do not prove uninterrupted uptime or give exact launch and shutdown dates. A pool with no dated evidence stays in the tables below.
-          .defcoin-pool-timeline(role='img', aria-label=`Defcoin pool observed timeline from ${poolTimeline.startYear} through ${poolTimeline.endYear}`)
+          .defcoin-pool-timeline(role='region', tabindex='0', aria-label=`Defcoin pool observed timeline from ${poolTimeline.startYear} through ${poolTimeline.endYear}`)
             .defcoin-pool-timeline-inner(style=`grid-template-columns: 74px repeat(${poolTimeline.items.length}, minmax(92px, 1fr));`)
               .defcoin-pool-timeline-axis
                 each tick in poolTimeline.ticks
@@ -134,9 +152,9 @@ block content
                     span= item.endLabel
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Source code and network identity
+        h2#source-network Source code and network identity
       .card-body
         .defcoin-callout
           p.mb-0.defcoin-helper
@@ -156,18 +174,18 @@ block content
                 li= note
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Historical statistics
+        h2#historical-statistics Historical statistics
       .card-body
-        .table-responsive
+        .table-responsive(role='region', aria-labelledby='historical-statistics', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
-                th Snapshot
-                th Earliest evidence
-                th Latest evidence
-                th Notes
+                th(scope='col') Snapshot
+                th(scope='col') Earliest evidence
+                th(scope='col') Latest evidence
+                th(scope='col') Notes
             tbody
               each item in semiRetiredSnapshots
                 tr
@@ -180,19 +198,19 @@ block content
                   td= item.note
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Older project sites
+        h2#older-sites Older project sites
       .card-body
-        .table-responsive
+        .table-responsive(role='region', aria-labelledby='older-sites', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
-                th Site
-                th Earliest evidence
-                th Latest evidence
-                th Archive
-                th Notes
+                th(scope='col') Site
+                th(scope='col') Earliest evidence
+                th(scope='col') Latest evidence
+                th(scope='col') Archive
+                th(scope='col') Notes
             tbody
               each item in retiredProjectSites
                 tr
@@ -209,20 +227,20 @@ block content
                   td= item.note
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Older games, wallets, and tools
+        h2#older-tools Older games, wallets, and tools
       .card-body
-        .table-responsive
+        .table-responsive(role='region', aria-labelledby='older-tools', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
-                th Utility
-                th Purpose
-                th Earliest evidence
-                th Latest evidence
-                th Best Link
-                th Status
+                th(scope='col') Utility
+                th(scope='col') Purpose
+                th(scope='col') Earliest evidence
+                th(scope='col') Latest evidence
+                th(scope='col') Best link
+                th(scope='col') Status
             tbody
               each item in shutteredUtilities
                 tr
@@ -244,21 +262,21 @@ block content
                   td= item.status
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Historical pool directory
+        h2#older-pools Historical pool directory
       .card-body
-        .table-responsive
+        .table-responsive(role='region', aria-labelledby='older-pools', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
-                th Pool
-                th Operator
-                th Earliest evidence
-                th Latest evidence
-                th Original URL
-                th Archive
-                th Notes
+                th(scope='col') Pool
+                th(scope='col') Operator
+                th(scope='col') Earliest evidence
+                th(scope='col') Latest evidence
+                th(scope='col') Original URL
+                th(scope='col') Archive
+                th(scope='col') Notes
             tbody
               each item in retiredPools
                 tr
@@ -286,21 +304,21 @@ block content
                   td= item.note
 
   .col-12
-    .card.card-default.border-0.cardSpacer
+    .card.card-default.border-0.cardSpacer.defcoin-reading
       .card-header
-        strong Early on-chain records
+        h2#chain-records Early on-chain records
       .card-body
         .defcoin-callout
           p.mb-0.defcoin-helper
             | These transaction timestamps are listed oldest first. They document chain activity; they do not by themselves establish when the project was publicly launched.
-        .table-responsive
+        .table-responsive(role='region', aria-labelledby='chain-records', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
-                th Date / Time
-                th Event
-                th Evidence
-                th Notes
+                th(scope='col') Date / time
+                th(scope='col') Event
+                th(scope='col') Evidence
+                th(scope='col') Notes
             tbody
               each item in chainTimeline
                 tr

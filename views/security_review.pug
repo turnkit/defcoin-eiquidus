@@ -1,0 +1,40 @@
+extends layout
+
+block page_intro
+  .col-md-12.cardSpacer
+    #page-header-container.explorer-hero
+      #page-title-container.explorer-hero-brand
+        .explorer-hero-copy
+          h1#page-title= review.title
+          .sub-page-header.text-muted
+            | Review date: #{review.reviewedOn}. Defcoin DC903 migration, source repairs, and security checks.
+        +defcoinPageBranding('explorer-hero-mark')
+    .cardSpacer.clearfix
+
+block content
+  .col-12
+    article.card.card-default.border-0.cardSpacer.defcoin-reading(aria-labelledby='page-title')
+      .card-body
+        p= review.summary
+        nav.defcoin-reading-nav(aria-label='On this security report')
+          ul
+            each section in review.sections
+              li
+                a(href=`#${section.id}`)= section.title
+        each section in review.sections
+          section.defcoin-review-section(aria-labelledby=section.id)
+            h2(id=section.id)= section.title
+            if section.paragraphs
+              each paragraph in section.paragraphs
+                p= paragraph
+            if section.items
+              ul
+                each item in section.items
+                  li= item
+            if section.sources
+              ul.defcoin-compact-link-list
+                each source in section.sources
+                  li
+                    a(href=source.url)= source.label
+        p.mt-4
+          a(href='https://defcoin.dc903.org/history') Read the community history
