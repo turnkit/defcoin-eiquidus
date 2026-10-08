@@ -320,6 +320,58 @@ describe('security boundaries', function() {
       }).toThrowError(/Unsupported MongoDB tool/);
     });
 
+    it('rejects non-array arguments before launching a tool', function() {
+      let launched = false;
+      expect(function() {
+        mongodbTool.spawnMongoTool('mongodump', '--archive=example', 'dummy', function() {
+          launched = true;
+        });
+      }).toThrowError(TypeError, /must be an array/);
+      expect(launched).toBeFalse();
+    });
+
+    it('removes the private config directory after a synchronous spawn failure', function() {
+      let configPath;
+      expect(function() {
+        mongodbTool.spawnMongoTool('mongorestore', [], 'dummy', function(command, args) {
+          configPath = args[0].substring('--config='.length);
+          throw new Error('test launch failure');
+        });
+      }).toThrowError(/test launch failure/);
+      expect(fs.existsSync(require('path').dirname(configPath))).toBeFalse();
+    });
+
+    it('cleans up on an asynchronous error and tolerates a subsequent exit', function() {
+      const child = new EventEmitter();
+      let configPath;
+      mongodbTool.spawnMongoTool('mongodump', [], 'dummy', function(command, args) {
+        configPath = args[0].substring('--config='.length);
+        return child;
+      });
+      child.emit('error', new Error('test process failure'));
+      expect(fs.existsSync(require('path').dirname(configPath))).toBeFalse();
+      expect(function() { child.emit('exit', 1, null); }).not.toThrow();
+    });
+
+    it('quotes multiline credentials and makes the directory owner-only', function() {
+      const child = new EventEmitter();
+      const secret = 'dummy\npassword: injected\r\n"quoted"\\end';
+      let configPath;
+      mongodbTool.spawnMongoTool('mongorestore', [], secret, function(command, args) {
+        configPath = args[0].substring('--config='.length);
+        return child;
+      });
+      try {
+        expect(fs.statSync(require('path').dirname(configPath)).mode & 0o777).toEqual(0o700);
+        const config = fs.readFileSync(configPath, 'utf8');
+        expect(config.split('\n').length).toEqual(2);
+        expect(JSON.parse(config.substring('password: '.length).trim())).toEqual(secret);
+      } finally {
+        child.emit('exit', 0, null);
+      }
+      expect(fs.existsSync(configPath)).toBeFalse();
+    });
+
     it('routes backup and restore data through the shell-free helper', function() {
       ['scripts/create_backup.js', 'scripts/restore_backup.js'].forEach(function(filename) {
         const source = fs.readFileSync(filename, 'utf8');

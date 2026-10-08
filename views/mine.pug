@@ -7,7 +7,7 @@ block page_intro
         .explorer-hero-copy
           h3#page-title How To Mine Defcoin
           .sub-page-header.text-muted
-            | Beginner-friendly wallet setup, real hardware examples, and live mining estimates grounded in the current DC903 pool and Defcoin network conditions.
+            | Set up a wallet and compare hardware estimates using DC903 pool and Defcoin network data.
         +defcoinPageBranding('explorer-hero-mark')
     .cardSpacer.clearfix
 
@@ -21,14 +21,14 @@ block content
       .card-body
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | The currently published binaries come from the official
+            | The table below lists x86_64 downloads from the official
             a.ms-1(href=miningCatalog.releases.githubReleaseUrl)= miningCatalog.releases.version
-            |  release and are all x86_64-era builds. Windows and Linux downloads are current enough to test today. Intel macOS builds exist, but no Apple Silicon build is currently published or verified.
+            |  release. Read each platform's compatibility notes before using these older builds.
           p.mb-0.defcoin-helper
-            | If you use Apple Silicon, assume you need either Rosetta experiments or a future native community build. Do not treat Apple Silicon support as working until someone verifies it.
+            | These Intel macOS downloads have not been verified on Apple Silicon. Check a wallet's own release notes for native support and tested platforms.
         .defcoin-callout.mt-3
           p.mb-0.defcoin-helper
-            | You do not need the full desktop wallet before you can receive coins. You can generate a paper wallet first, save the private key offline, share only the public address, and ask someone to send Defcoin there. Later you can import or sweep that paper wallet into a full wallet.
+            | A paper wallet can receive coins before you install a desktop wallet. Save its private key offline and share only the public address. You can later import or sweep it into a full wallet.
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
             thead
@@ -50,14 +50,14 @@ block content
         strong 2. Ways To Get Defcoin
       .card-body
         p.defcoin-helper
-          | Mining is only one path. If you are just trying to get your first working wallet, it is often easier to receive a small transfer first, then test mining second.
+          | A small transfer lets you test receiving coins before setting up a miner.
         ul
           each method in miningCatalog.obtainMethods
             li= method
         p.defcoin-helper.mt-3.mb-0
-          | If you want the lightest possible first step, use the
+          | Use the
           a.ms-1(href='https://defcoin.dc903.org/paperwallet') Paper Wallet
-          |  page to create an address pair now, keep the private key secret, and share the public address with a friend or counterparty.
+          |  page to create an address and private key. Keep the key secret and share only the address.
 
   .col-12
     .card.card-default.border-0.cardSpacer
@@ -68,27 +68,27 @@ block content
           .defcoin-stat-card
             span.stat-label CPU Mining
             p.mb-2.defcoin-helper
-              | Best when you already own the machine and want to learn the basics. It is simple and quiet, but usually the slowest path.
+              | An existing CPU lets you try mining with little extra hardware. Its hashrate is usually lower than a GPU or ASIC.
             p.mb-0.defcoin-helper
-              | Good fit: a desktop CPU you already have running, such as the Ryzen 9 3900X in the table below.
+              | The table includes a Ryzen 9 3900X example.
           .defcoin-stat-card
             span.stat-label GPU Mining
             p.mb-2.defcoin-helper
-              | Better than CPU mining if you already own an older gaming card. Setup is a little more involved, but it is still approachable.
+              | An older gaming card can offer more hashrate than a CPU, though setup takes more work.
             p.mb-0.defcoin-helper
-              | Good fit: a used RX 580-class card, especially if you want to experiment before buying an ASIC.
+              | The table includes an RX 580-class example.
           .defcoin-stat-card
             span.stat-label ASIC Mining
             p.mb-2.defcoin-helper
-              | This is the serious Scrypt-mining route. It brings the most hashrate, but it also brings fan noise, heat, and power draw.
+              | Scrypt ASICs offer more hashrate, with added fan noise, heat, and power use.
             p.mb-0.defcoin-helper
-              | Good fit: an older L3+ or a smaller home miner like the Mini-DOGE III if you want better odds without building a rack.
+              | The examples include the L3+ and Mini-DOGE III.
           .defcoin-stat-card
             span.stat-label Reality Check
             p.mb-2.defcoin-helper
-              | Defcoin is a low-activity network in 2026. The numbers below are estimates, not promises, and small changes in who is mining can swing the results a lot.
+              | Defcoin has few active miners in these 2026 observations. A change in participating hashrate can move the estimates sharply.
             p.mb-0.defcoin-helper
-              | Start small, watch your power cost, and treat early mining as learning and collecting rather than guaranteed profit.
+              | Check your power cost. These estimates do not guarantee profit.
 
   .col-12
     .card.card-default.border-0.cardSpacer
@@ -97,9 +97,9 @@ block content
       .card-body
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | The price ranges below are curated 2026 used-market snapshots, not scraped live every second. The mining estimates do refresh from current site data so the yield columns track the live pool context instead of a frozen article.
+            | Prices are curated 2026 used-market snapshots. Yield estimates refresh from current pool and network data.
           p.mb-0.defcoin-helper
-            | Two yield views are shown: a recent-pool-pace view and a long-run expectation view. On a tiny, low-activity network they may be close, but both are still estimates, not guarantees.
+            | Recent Pool Pace uses observed activity; Long-Run Expected estimates yield over time. Both are estimates.
         .defcoin-status-grid
           .defcoin-stat-card
             span.stat-label Catalog Checked
@@ -140,4 +140,4 @@ block content
           li Obtain a small amount of Defcoin by gift, transfer, paper wallet, or mining so you can test that your wallet and explorer lookups work.
           li Decide whether you are learning with a CPU or GPU you already own, or buying an ASIC on purpose.
           li Compare your power cost against the live estimates below before you point hardware at the pool.
-          li Start mining to an address you control, then watch the Pool page and Explorer so you understand how shares, balances, and found blocks actually look in practice.
+          li Mine to an address you control, then check your shares, balances, and found blocks on the Pool and Explorer pages.

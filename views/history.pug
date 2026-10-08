@@ -13,7 +13,7 @@ block page_intro
         .explorer-hero-copy
           h3#page-title Defcoin History
           .sub-page-header.text-muted
-            | Live references, semi-retired snapshots, and older infrastructure are grouped separately so working community links do not get buried in dead-link buckets.
+            | How Defcoin was used at DEF CON, how its software and mining community changed, and where the surviving records can be found.
         +defcoinPageBranding('explorer-hero-mark')
     .cardSpacer.clearfix
 
@@ -21,22 +21,31 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong History Overview
+        strong The community story
       .card-body
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | This page was regenerated from structured history data on #{generatedOn}. Active references stay active, semi-retired snapshots stay in their own middle bucket, and only dead or parked surfaces fall into the retired sections.
+            | Defcoin is a cryptocurrency used by members of the DEF CON community to learn about mining and transactions. It has its own blockchain and Litecoin-derived software. Conference talks, the Coindroids game, and community-run services left the records collected here.
           p.mb-0.defcoin-helper
-            | Dates in the evidence columns link to the specific capture or reference that justified the first-seen or last-seen value. Unknowns are left explicit instead of guessed.
+            | History researched on #{researchUpdatedOn}. The original link inventory dates to #{generatedOn}; each service check and archive capture keeps its own date. Unknown dates remain marked as unknown.
+        each chapter in communityStory
+          section.mt-4
+            h4 #{chapter.date}: #{chapter.title}
+            each paragraph in chapter.paragraphs
+              p.defcoin-helper= paragraph
+            ul.defcoin-compact-link-list
+              each source in chapter.sources
+                li
+                  a(href=source.url)= source.label
         .defcoin-page-grid.two-up
           .defcoin-stat-card
-            span.stat-label Current Surfaces
+            span.stat-label Current DC903 pages
             ul.mb-0
               each item in currentSurfaces
                 li
                   a(href=item.url)= item.label
           .defcoin-stat-card
-            span.stat-label Research Notes
+            span.stat-label What these records establish
             ul.mb-0
               each note in researchNotes
                 li= note
@@ -44,7 +53,7 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Active Community And References
+        strong Community links and further reading
       .card-body
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
@@ -63,7 +72,7 @@ block content
     .col-12
       .card.card-default.border-0.cardSpacer
         .card-header
-          strong Active Pools
+          strong Pools with recorded live checks
         .card-body
           .table-responsive
             table.table.table-bordered.table-striped.table-hover
@@ -73,7 +82,7 @@ block content
                   th Operator
                   th Website
                   th Stratum
-                  th Last Seen
+                  th Last live check
                   th Notes
               tbody
                 each item in activePools
@@ -98,11 +107,11 @@ block content
     .col-12
       .card.card-default.border-0.cardSpacer.defcoin-pool-timeline-card
         .card-header
-          strong Pool Timeline
+          strong Pool evidence timeline
         .card-body
           .defcoin-callout
             p.mb-0.defcoin-helper
-              | Vertical bars show the first-to-last observed evidence window for each pool. They do not prove uninterrupted uptime between those dates; unknown-dated pools remain in the tables below until a dated source is found.
+              | Bars connect the earliest and latest evidence recorded here. They do not prove uninterrupted uptime or give exact launch and shutdown dates. A pool with no dated evidence stays in the tables below.
           .defcoin-pool-timeline(role='img', aria-label=`Defcoin pool observed timeline from ${poolTimeline.startYear} through ${poolTimeline.endYear}`)
             .defcoin-pool-timeline-inner(style=`grid-template-columns: 74px repeat(${poolTimeline.items.length}, minmax(92px, 1fr));`)
               .defcoin-pool-timeline-axis
@@ -127,21 +136,21 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Source Authority And Network Identity
+        strong Source code and network identity
       .card-body
         .defcoin-callout
           p.mb-0.defcoin-helper
-            | These links anchor the Defcoin history to archived official sites and source trees. Network identity notes are intentionally cautious where the public record is unclear.
+            | Archived project sites help trace the source repositories. The notes below describe network settings in those code versions. Message bytes identify the expected network at the start of a peer message.
         .defcoin-page-grid.two-up
           .defcoin-stat-card
-            span.stat-label Source Links
+            span.stat-label Source links
             ul.mb-0
               each item in sourceAuthority
                 li
                   a(href=item.url)= item.label
                   |  — #{item.note}
           .defcoin-stat-card
-            span.stat-label Network Identity Notes
+            span.stat-label Network settings
             ul.mb-0
               each note in networkIdentityNotes
                 li= note
@@ -149,15 +158,15 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Semi-Retired Snapshots
+        strong Historical statistics
       .card-body
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
                 th Snapshot
-                th First Seen
-                th Last Seen
+                th Earliest evidence
+                th Latest evidence
                 th Notes
             tbody
               each item in semiRetiredSnapshots
@@ -173,15 +182,15 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Retired Project Sites
+        strong Older project sites
       .card-body
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
             thead
               tr
                 th Site
-                th First Seen
-                th Last Seen
+                th Earliest evidence
+                th Latest evidence
                 th Archive
                 th Notes
             tbody
@@ -202,7 +211,7 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Shuttered Defcoin Utility Sites
+        strong Older games, wallets, and tools
       .card-body
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
@@ -210,8 +219,8 @@ block content
               tr
                 th Utility
                 th Purpose
-                th First Seen
-                th Last Seen
+                th Earliest evidence
+                th Latest evidence
                 th Best Link
                 th Status
             tbody
@@ -237,7 +246,7 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Retired Pools
+        strong Historical pool directory
       .card-body
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
@@ -245,8 +254,8 @@ block content
               tr
                 th Pool
                 th Operator
-                th First Seen
-                th Last Seen
+                th Earliest evidence
+                th Latest evidence
                 th Original URL
                 th Archive
                 th Notes
@@ -268,7 +277,7 @@ block content
                             li
                               a(href=alternateUrl)= alternateUrl
                     else
-                      span Unknown / still researching
+                      span Unknown
                   td
                     if item.archiveUrl
                       a(href=item.archiveUrl) Wayback search
@@ -279,11 +288,11 @@ block content
   .col-12
     .card.card-default.border-0.cardSpacer
       .card-header
-        strong Defcoin Timeline
+        strong Early on-chain records
       .card-body
         .defcoin-callout
           p.mb-0.defcoin-helper
-            | Oldest known chain events are listed first. Each timestamp links to the transaction evidence used for this history page.
+            | These transaction timestamps are listed oldest first. They document chain activity; they do not by themselves establish when the project was publicly launched.
         .table-responsive
           table.table.table-bordered.table-striped.table-hover
             thead
