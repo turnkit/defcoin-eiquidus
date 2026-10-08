@@ -380,6 +380,44 @@ describe('security boundaries', function() {
     });
   });
 
+  describe('pool page markup escaping', function() {
+    it('escapes every recent-block value inserted into table markup', function() {
+      const fs = require('fs');
+      const source = fs.readFileSync('public/js/defcoin-pool.js', 'utf8');
+      const start = source.indexOf('function renderBlockTable(recentBlocks)');
+      const end = source.indexOf('\n  function pagerAvailableWidth()', start);
+      const renderBlockTable = source.slice(start, end);
+
+      expect(start).toBeGreaterThan(-1);
+      expect(renderBlockTable).toContain('${escapeHtml(formatRelativeTime(block.ts))}');
+      expect(renderBlockTable).toContain('${escapeHtml(formatTimestamp(block.ts))}');
+      expect(renderBlockTable).toContain('${escapeHtml(height)}');
+      expect(renderBlockTable).not.toContain('>${height}</a>');
+    });
+  });
+
+  describe('peer geolocation resilience', function() {
+    it('bounds the external lookup and does not abort peer sync when enrichment fails', function() {
+      const fs = require('fs');
+      const explorerSource = fs.readFileSync('lib/explorer.js', 'utf8');
+      const lookupStart = explorerSource.indexOf('get_geo_location: function(address, cb)');
+      const lookupEnd = explorerSource.indexOf('\n  is_unique:', lookupStart);
+      const lookupSource = explorerSource.slice(lookupStart, lookupEnd);
+      const syncSource = fs.readFileSync('scripts/sync.js', 'utf8');
+      const syncStart = syncSource.indexOf('lib.get_geo_location(address');
+      const syncEnd = syncSource.indexOf('\n                    });', syncStart);
+      const geolocationSync = syncSource.slice(syncStart, syncEnd);
+
+      expect(lookupStart).toBeGreaterThan(-1);
+      expect(lookupSource).toContain('timeout: GEOLOCATION_TIMEOUT_MS');
+      expect(lookupSource).toContain('maxResponseSize: GEOLOCATION_MAX_RESPONSE_BYTES');
+      expect(lookupSource).toContain('followRedirect: false');
+      expect(syncStart).toBeGreaterThan(-1);
+      expect(geolocationSync).not.toContain('exit(1)');
+      expect(geolocationSync).toContain('peerList = peerList.concat(newPeers)');
+    });
+  });
+
   describe('wallet RPC authorization', function() {
     const nodeapi = require('../lib/nodeapi');
     const settings = require('../lib/settings');
