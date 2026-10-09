@@ -13,7 +13,7 @@ block page_intro
         .explorer-hero-copy
           h1#page-title Defcoin History
           .sub-page-header.text-muted
-            | How Defcoin was used at DEF CON, how its software and mining community changed, and where the surviving records can be found.
+            | How the DEF CON community developed Defcoin and used it for games and mining.
         +defcoinPageBranding('explorer-hero-mark')
     .cardSpacer.clearfix
 
@@ -35,9 +35,9 @@ block content
               a(href='#chain-records') On-chain records
         .defcoin-callout
           p.mb-2.defcoin-helper
-            | Defcoin is a cryptocurrency used by members of the DEF CON community to learn about mining and transactions. It has its own blockchain and Litecoin-derived software. Conference talks, the Coindroids game, and community-run services left the records collected here.
+            | Defcoin is the DEF CON community's cryptocurrency, with its own blockchain and Litecoin-derived software. Coindroids developers built a game around Defcoin transactions, and community miners ran pools to process them.
           p.mb-0.defcoin-helper
-            | History researched on #{researchUpdatedOn}. The original link inventory dates to #{generatedOn}; each service check and archive capture keeps its own date. Unknown dates remain marked as unknown.
+            | Source review: #{researchUpdatedOn}. Copy revision: #{copyUpdatedOn}. Original link inventory: #{generatedOn}. Check the tables for dated archive captures and service tests.
         .defcoin-community-story
           each chapter, index in communityStory
             section.defcoin-story-chapter(aria-labelledby=`story-${index}`)
@@ -62,7 +62,7 @@ block content
                 li
                   a(href=item.url)= item.label
           .defcoin-stat-card
-            span.stat-label What these records establish
+            span.stat-label Sources and check dates
             ul.mb-0
               each note in researchNotes
                 li= note
@@ -72,7 +72,7 @@ block content
       .card-header
         h2#community-links Community links and further reading
       .card-body
-        p.defcoin-scroll-hint Wide tables scroll sideways. Tab to a table, then use the arrow keys.
+        p.defcoin-scroll-hint Scroll across the table to read columns offscreen. With a keyboard, tab to the table and press Left or Right.
         .table-responsive(role='region', aria-labelledby='community-links', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
@@ -129,7 +129,7 @@ block content
         .card-body
           .defcoin-callout
             p.mb-0.defcoin-helper
-              | Bars connect the earliest and latest evidence recorded here. They do not prove uninterrupted uptime or give exact launch and shutdown dates. A pool with no dated evidence stays in the tables below.
+              | Use the bar endpoints to find each pool's first and last dated observation. Look in the directory below for pools whose dates remain unknown.
           .defcoin-pool-timeline(role='region', tabindex='0', aria-label=`Defcoin pool observed timeline from ${poolTimeline.startYear} through ${poolTimeline.endYear}`)
             .defcoin-pool-timeline-inner(style=`grid-template-columns: 74px repeat(${poolTimeline.items.length}, minmax(92px, 1fr));`)
               .defcoin-pool-timeline-axis
@@ -158,7 +158,7 @@ block content
       .card-body
         .defcoin-callout
           p.mb-0.defcoin-helper
-            | Archived project sites help trace the source repositories. The notes below describe network settings in those code versions. Message bytes identify the expected network at the start of a peer message.
+            | Follow the archived project-site links to trace the source repositories. Compare the network settings below across those versions; message bytes identify the expected network at the start of a peer message.
         .defcoin-page-grid.two-up
           .defcoin-stat-card
             span.stat-label Source links
@@ -310,7 +310,7 @@ block content
       .card-body
         .defcoin-callout
           p.mb-0.defcoin-helper
-            | These transaction timestamps are listed oldest first. They document chain activity; they do not by themselves establish when the project was publicly launched.
+            | Block 25 carries a 7 March 2014 timestamp. The 13 April 2014 coinbase includes P2Pool markers. Follow the explorer links to inspect both transactions.
         .table-responsive(role='region', aria-labelledby='chain-records', tabindex='0')
           table.table.table-bordered.table-striped.table-hover
             thead
