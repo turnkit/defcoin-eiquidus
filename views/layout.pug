@@ -76,7 +76,6 @@ doctype html
 - const calcBaseUrl = defcoinPath('/calc')
 - const qrgenBaseUrl = defcoinPath('/qrgen')
 - const historyBaseUrl = defcoinPath('/history')
-- const securityReviewUrl = explorerPath('/security-review')
 - const baseDocumentTitle = (page_title_prefix == null || page_title_prefix == '' ? settings.localization.error_title.replace('{1}', settings.coin.name) : page_title_prefix)
 - const sharedDocumentTitle = settings.shared_pages.page_title
 - const documentTitle = (baseDocumentTitle == sharedDocumentTitle ? sharedDocumentTitle : baseDocumentTitle + ' - ' + sharedDocumentTitle)
@@ -1835,20 +1834,11 @@ html(lang='en')
                   span.nav-icon
                     +clockHistoryIcon()
                   span.margin-left-5 History
-              li#security-review.nav-item
-                a.nav-link(href=securityReviewUrl, aria-label='Security review')
-                  span.nav-icon.fa-solid.fa-shield-halved(aria-hidden='true')
-                  span.margin-left-5 Security review
         div#side-offcanvas.offcanvas.offcanvas-start(tabindex='-1')
           div.offcanvas-body.navbar(class=sideBarClasses)
       div#main-container(class=mainContainerClasses)
         div#main-child-container(class=mainContainerChildClasses)
           block page_intro
-          if active != 'security-review'
-            .col-12
-              .defcoin-review-note
-                a(href=securityReviewUrl) Security & code-quality addendum · 8 October 2026
-                span Audit scope, hardening, tests, and open work.
           if showSync != null && showSync == true
             .col-lg-12
               .alert.alert-warning.sync-status-banner(role='alert')

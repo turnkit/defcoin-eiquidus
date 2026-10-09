@@ -1,6 +1,6 @@
 # Defcoin UI behavior contract
 
-Scope: public navigation, History/security reading surfaces, and existing tool controls during the October 2026 copy/polish pass. This does not approve new payout, wallet, administrative, or authenticated workflows.
+Scope: public navigation, History, and existing tool controls during the October 2026 copy/polish pass. The owner withdrew the public security report on 9 October 2026. Payout, wallet, administrative, and authenticated workflows retain their existing contracts.
 
 ## Canonical UI Map
 
@@ -11,13 +11,13 @@ Scope: public navigation, History/security reading surfaces, and existing tool c
 | Date | History evidence data | `lib/defcoin_history_data.js` | Full dates use time elements; coarse years remain text; no picker | Evidence/date tests |
 | Form | Existing tool templates/controllers | QR/calculator templates and browser scripts | QR creates/copies a URI, never pays; calculator is an estimate | Copy/browser-tool specs and browser checks |
 | Scrollbar | Shared integrated stylesheet | `public/css/defcoin-integrated.css` | Local overflow geometry; global theme; platform forced colors | UI specs, computed styles and table keyboard scrolling |
-| Toast | No new toast system | Static report/History views | Persistent inline content only | Escaped render tests |
+| Toast | No new toast system | History view | Persistent inline content only | Escaped render tests |
 | CRUD | Not exposed by these public reading/tool routes | Router and disabled-faucet contract | No create/update/delete/payout operation added | Route registration and smoke checks |
 
 ## Navigation and state
 
-- Links navigate; no click-only containers or new scripted navigation. The addendum is `/explorer/security-review`, discoverable in navigation and near the top of other pages.
-- Page titles use the existing `{Page} - {Explorer}` policy. History/report use an h1 with h2 sections; chronological chapters use h3.
+- Links navigate; no click-only containers or new scripted navigation. Public pages contain no security-report links or banners. The former report routes use the existing `404` behavior; detailed reports stay in private operations documentation as required by `AGENTS.md`.
+- Page titles use the existing `{Page} - {Explorer}` policy. History uses an h1 with h2 sections; chronological chapters use h3.
 - Reading anchors and focused elements remain visible below the existing header. No new fixed/sticky shell or nested vertical scroller.
 - Tables preserve all evidence, columns, order, and identifiers. Named horizontal regions are keyboard-focusable; no responsive column loss.
 - The existing server error/404 behavior remains. This public content change adds no role/authentication boundary or special 403 workflow.

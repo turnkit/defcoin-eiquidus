@@ -2,8 +2,6 @@
 
 ## Defcoin DC903 review
 
-[Security and code-quality addendum, 8 October 2026](https://defcoin.dc903.org/explorer/security-review): model/audit provenance, hardening, tested repairs, deployment checks, and remaining gaps. This is a dated implementation record, not a security certification.
-
 [Current change notes](docs/change-log-2026-10-08.md) · [Writing standard](docs/WRITING_STYLE.md) · [Guide-source audit](docs/WRITING_GUIDE_AUDIT_2026-10-08.md) · [Design contract](DESIGN.md)
 
 The current Ubuntu deployment uses immutable releases and an atomic active-release link. The dated May operator notes below remain historical evidence; they are not the current deployment procedure. Upstream documentation follows unchanged.

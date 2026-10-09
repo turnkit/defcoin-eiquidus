@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const pug = require('pug');
 const history = require('../lib/defcoin_history_data');
-const review = require('../lib/defcoin_security_review_data');
 const root = path.resolve(__dirname, '..');
 const css = fs.readFileSync(path.join(root, 'public/css/defcoin-integrated.css'), 'utf8');
 const design = fs.readFileSync(path.join(root, 'DESIGN.md'), 'utf8');
@@ -35,7 +34,7 @@ function render(view, data) {
   return pug.render('mixin defcoinPageBranding(className)\n  span Defcoin\n' + source, { ...data, filename });
 }
 
-describe('reading surfaces and public audit evidence', function() {
+describe('History reading surface and private security-report boundary', function() {
   it('keeps documented palette values tied to the canonical runtime source', function() {
     const mapping = {
       primary: 'gold', secondary: 'cyan', background: 'charcoal', surface: 'panel',
@@ -114,7 +113,7 @@ describe('reading surfaces and public audit evidence', function() {
   });
 
   it('resolves all new internal contents links to an actual heading', function() {
-    [render('history', history), render('security_review', { review })].forEach(function(html) {
+    [render('history', history)].forEach(function(html) {
       [...html.matchAll(/href="#([^"]+)"/g)].forEach(function(link) {
         expect(html).toContain('id="' + link[1] + '"');
       });
@@ -123,62 +122,30 @@ describe('reading surfaces and public audit evidence', function() {
     });
   });
 
-  it('keeps the report dated, model-attributed and explicit about audit independence', function() {
-    expect(review.reviewedOn).toEqual('2026-10-08');
-    const html = render('security_review', { review });
-    expect(html).toContain('gpt-daybreak-blue-latest');
-    expect(html).toContain('gpt-6.1-sol');
-    expect(html).toContain('gpt-5.6-sol');
-    expect(html).toContain('66593ef5-0f96-460b-86e1-9f3809be43a3');
-    expect(html).toContain('not an independent multi-model certification');
-    expect(html).toContain('not a penetration-test certification');
-  });
-
-  it('discloses unfinished and bounded work instead of presenting mitigations as patches', function() {
-    const html = render('security_review', { review });
-    ['no sealed final report', 'not validated vulnerabilities', 'Mitigation is not a patch',
-      'unsafe-inline', 'transaction feed', 'upstream-maintainer merge gate',
-      'two unchanged Dexomy/Dextrade external-provider failures', 'not a current advisory feed']
-      .forEach(function(limit) { expect(html).toContain(limit); });
-  });
-
-  it('escapes untrusted report paragraphs and list items', function() {
-    const fixture = {
-      ...review,
-      sections: [{
-        id: 'escaping', title: '<script>heading</script>',
-        paragraphs: ['<img src=x onerror=untrusted>'], items: ['<script>item</script>']
-      }]
-    };
-    const html = render('security_review', { review: fixture });
-    expect(html).toContain('&lt;img src=x onerror=untrusted&gt;');
-    expect(html).toContain('&lt;script&gt;item&lt;/script&gt;');
-    expect(html).not.toContain('<script>');
-    expect(html).not.toContain('<img');
-  });
-
-  it('uses only credential-free HTTPS evidence links in the public report', function() {
-    review.sections.forEach(function(section) {
-      (section.sources || []).forEach(function(source) {
-        const url = new URL(source.url);
-        expect(url.protocol).toEqual('https:');
-        expect(url.username + url.password).toEqual('');
-      });
-    });
-  });
-
-  it('keeps the report link visible near the top and the stylesheet cache key current', function() {
+  it('keeps report links and banners out of the shared public shell', function() {
     const layout = fs.readFileSync(path.join(root, 'views/layout.pug'), 'utf8');
-    const notice = layout.indexOf('.defcoin-review-note');
-    expect(notice).toBeGreaterThan(layout.indexOf('block page_intro'));
-    expect(notice).toBeLessThan(layout.indexOf('if showSync != null'));
-    expect(layout).toContain('li#security-review.nav-item');
+    expect(layout).not.toContain('security-review');
+    expect(layout).not.toContain('securityReviewUrl');
+    expect(layout).not.toContain('.defcoin-review-note');
+    expect(layout).not.toContain('Security & code-quality addendum');
+    expect(layout).toContain('li#history.nav-item');
     expect(layout).toContain('/css/defcoin-integrated.css?v=20261008a');
   });
 
-  it('registers the static report through the existing integrated render path', function() {
+  it('withdraws all registered report aliases while preserving History and tool routes', function() {
     const router = fs.readFileSync(path.join(root, 'routes/index.js'), 'utf8');
-    expect(router).toContain("router.get(['/security-review', '/standalone/security-review']");
-    expect(router).toContain('{ review: defcoinSecurityReviewData }');
+    expect(router).not.toContain('security-review');
+    expect(router).not.toContain('defcoinSecurityReviewData');
+    expect(router).not.toContain('security_review');
+    expect(router).toContain("router.get(['/history', '/standalone/history']");
+    expect(router).toContain("router.get(['/calc', '/reward-calculator', '/standalone/calc']");
+    expect(router).toContain("router.get(['/qrgen', '/qr-generator', '/standalone/qrgen']");
+  });
+
+  it('excludes the detailed report data and template from current public source', function() {
+    expect(fs.existsSync(path.join(root, 'lib/defcoin_security_review_data.js'))).toBeFalse();
+    expect(fs.existsSync(path.join(root, 'views/security_review.pug'))).toBeFalse();
+    const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+    expect(readme).not.toContain('/security-review');
   });
 });

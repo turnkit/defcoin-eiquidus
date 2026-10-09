@@ -14,7 +14,7 @@ Own the Defcoin DC903 explorer source and its current public-page copy.
 
 - Follow `docs/WRITING_STYLE.md` for new prose and edits to current page copy, including community history. Preserve existing release notes and dated changelogs.
 - Cite primary sources for historical claims. Keep archive capture dates distinct from launch, shutdown, and continuous-uptime claims. Record copy revision, research, and endpoint-check dates separately; a copy edit must retain the recorded service-check dates.
-- Keep the public security addendum dated and linked near the top. Name models only from execution records; separate completed scans, provisional inventory, mitigations, tests, and unverified claims. Publish no credentials, private paths, peer identities, or raw production records.
+- Keep detailed security reports, CVE inventories, operational weaknesses, and audit-source snapshots in private operations documentation. Serve no security-report route or public navigation/banner link. Publishing a new security summary requires explicit owner approval; name models only from execution records and keep credentials, private paths, peer identities, and raw production records private.
 - Preserve the existing Defcoin visual identity and tool behavior during polish. Shared focus/scrollbar tokens live in the integrated stylesheet; use readable prose and named, keyboard-scrollable evidence regions. No new payment or wallet workflow is authorized by visual work.
 - Keep URLs, identifiers, versions, evidence dates, form controls, template variables, and security warnings intact during text edits.
 - Keep the faucet unregistered and unavailable until a separate payout-safety review approves it.
@@ -27,6 +27,7 @@ Own the Defcoin DC903 explorer source and its current public-page copy.
 - Use small, reviewable changes. Do not restyle inherited upstream history or notices.
 - Compile Pug templates and run offline tests before deployment. Public-market integration tests require external services and do not replace offline checks.
 - Keep history-copy regressions for negative parallelism, relative dates, and actionable table hints alongside the source-evidence checks. Preserve known facts and unknowns when rewriting a qualification.
+- Test withdrawn report URLs for `404` and verify public pages contain neither report links nor report content.
 
 # Verification
 
