@@ -119,6 +119,10 @@ describe('community history evidence', function() {
     expect(html).toContain('Scroll across the table to read columns offscreen.');
     expect(html).toContain('With a keyboard, tab to the table and press Left or Right.');
     expect(html).not.toContain('Wide tables scroll sideways.');
+    expect(html).not.toContain('The directory preserves both');
+    expect(html).not.toContain('the archived footer is still useful');
+    expect(html).not.toContain('The dates below identify');
+    expect(html).not.toContain('Newer Nu releases are listed separately.');
     expect(html).toContain('Coindroids developers built a game around Defcoin transactions');
     expect(data.communityStory[4].paragraphs[0])
       .toEqual('On 23 January 2021, Coindroids developers announced a pause in the game.');
