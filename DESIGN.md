@@ -44,7 +44,7 @@ components:
 
 Audience: DEF CON community members, miners, and infosec professionals. Readers need a factual community account and inspectable evidence; tool users need recognizable controls and accurate data. The current user brief and the owning `AGENTS.md` are the product context. This is an English-language, global community site, not a jurisdiction-specific financial service.
 
-History and the security addendum are reading surfaces. Pool, explorer, calculator, QR, and mining statistics are product tools. Preserve their routes, input/control contracts, financial warnings, and data behavior during visual work.
+History is the public reading surface. Pool, explorer, calculator, QR, and mining statistics are product tools. Preserve their routes, input/control contracts, financial warnings, and data behavior during visual work. Detailed security reports belong in private operations documentation.
 
 The visual reference is a conference workshop notebook: dated observations beside source material. The signature is a chronological date rail, using real evidence dates. Existing gold, cyan, charcoal, coin imagery, and navigation remain. Avoid generic marketing cards, invented trust badges, decorative counters, or animated audit claims.
 
@@ -72,7 +72,7 @@ Global scrollbars use the scrollbar token against background, muted on hover and
 
 ## Typography
 
-Reuse the installed Lucida Grande/Helvetica/Arial body stack, inherited heading weight, and monospace utility stack. No new typeface download. Reading text is `1rem`, line height `1.65`, with a maximum `66ch` measure. Date metadata uses `0.875rem` monospace. Reading section headings are `1.15rem`; chapter/report headings are `1.35rem`. Hero size remains the existing responsive `#page-title` rule.
+Reuse the installed Lucida Grande/Helvetica/Arial body stack, inherited heading weight, and monospace utility stack. No new typeface download. Reading text is `1rem`, line height `1.65`, with a maximum `66ch` measure. Date metadata uses `0.875rem` monospace. Reading section headings are `1.15rem`; chapter headings are `1.35rem`. Hero size remains the existing responsive `#page-title` rule.
 
 ## Layout, shape, and depth
 
@@ -84,7 +84,7 @@ Archive tables keep all columns, `scope=col` headers, a named focusable horizont
 
 Follow `docs/WRITING_STYLE.md`. Cite primary historical sources, label dated checks and unknowns, retain identifiers and archive dates, and leave old release notes unchanged. Audit claims need named scope, evidence, limits, and remaining work; no model name implies certification.
 
-No entrance, scroll, or decorative animation is added. Reduced motion removes reading-surface transitions; keyboard navigation remains native. The report link is informational, not an alert or a security seal.
+No entrance, scroll, or decorative animation is added. Reduced motion removes reading-surface transitions; keyboard navigation remains native. Public navigation and page headers contain no security-report link or banner.
 
 ## Research and verification
 
