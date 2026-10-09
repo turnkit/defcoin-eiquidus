@@ -109,7 +109,8 @@ describe('reading surfaces and public audit evidence', function() {
     const html = render('history', history);
     expect(html).toContain('class="defcoin-pool-timeline" role="region" tabindex="0"');
     expect(html).not.toContain('role="img"');
-    expect(html).toContain('Bars connect the earliest and latest evidence');
+    expect(html).toContain("Use the bar endpoints to find each pool's first and last dated observation.");
+    expect(html).toContain('Look in the directory below for pools whose dates remain unknown.');
   });
 
   it('resolves all new internal contents links to an actual heading', function() {

@@ -6,6 +6,14 @@ const path = require('path');
 const pug = require('pug');
 const data = require('../lib/defcoin_history_data');
 
+function renderHistory(fixture) {
+  const filename = path.resolve(__dirname, '../views/history.pug');
+  const source = fs.readFileSync(filename, 'utf8').replace(/^extends layout\n/, '');
+  return pug.render('mixin defcoinPageBranding(className)\n  span Defcoin\n' + source, {
+    ...fixture, filename
+  });
+}
+
 describe('community history evidence', function() {
   // Original archive URLs, dates, names and transaction identifiers are retained.
   const evidenceKeys = [
@@ -31,9 +39,11 @@ describe('community history evidence', function() {
     });
   });
 
-  it('keeps research and original inventory dates separate', function() {
+  it('keeps copy revision, research and original inventory dates separate', function() {
     expect(data.generatedOn).toEqual('2026-04-27');
     expect(data.researchUpdatedOn).toEqual('2026-10-08');
+    expect(data.copyUpdatedOn).toEqual('2026-10-09');
+    expect(renderHistory(data)).toContain('Source review: 2026-10-08. Copy revision: 2026-10-09.');
     expect(data.communityStory.map(function(chapter) { return chapter.date; })).toEqual([
       '2014-08-07', '2018-06-19', '2019-08-18', '2020-08-10', '2021', '2026'
     ]);
@@ -69,26 +79,59 @@ describe('community history evidence', function() {
     })).toBeTrue();
   });
 
-  it('retains unknown pool dates and avoids a false first-ever claim', function() {
+  it('retains unknown pool dates and the early on-chain P2Pool evidence', function() {
     const unknown = data.retiredPools.find(function(pool) { return pool.name === 'DC801 Defcoin Pool'; });
     expect(unknown.firstSeen).toBeNull();
     expect(unknown.lastSeen).toBeNull();
-    expect(data.chainTimeline[0].note).toContain('not proof of the exact public launch date');
-    expect(data.communityStory[3].paragraphs[1]).toContain('does not establish the first-ever use');
+    expect(data.chainTimeline[0].note).toEqual('Block 25 contains this coinbase transaction.');
+    expect(data.chainTimeline[1].note).toContain('P2Pool donation output and an OP_RETURN share marker');
+    expect(data.communityStory[3].paragraphs[1]).toContain('13 April 2014');
+    expect(data.communityStory[3].paragraphs[1]).toContain('P2Pool donation output');
+    expect(data.researchNotes.join(' ')).toContain('launch date');
+    expect(data.researchNotes.join(' ')).toContain('unknown');
+  });
+
+  it('states history facts without negative-parallelism caveats', function() {
+    const prose = renderHistory(data).replace(/<[^>]+>/g, ' ');
+    [
+      /\bnot\b[^.!?;]*\bbut\b/i,
+      /[,;]\s*not\b/i,
+      /\b(?:is|are|was|were) not\b[^.!?]*[.;]\s*(?:it|they|this|that)\b/i,
+      /\bdoes not establish\b/i,
+      /\bnot proof\b/i
+    ].forEach(function(pattern) {
+      expect(prose).not.toMatch(pattern);
+    });
+    expect(prose).not.toContain('left the records collected here');
+    expect(prose).not.toContain('not a shutdown date');
+  });
+
+  it('anchors events and service checks to calendar dates', function() {
+    const prose = renderHistory(data).replace(/<[^>]+>/g, ' ');
+    expect(prose).not.toMatch(/\b(?:today|yesterday|tomorrow|recently)\b/i);
+    expect(data.communityStory[5].paragraphs[1]).toContain('On 8 October 2026, DC903 operators verified');
+    expect(data.activePools[0].lastSeen.label).toEqual('2026-10-08');
+    expect(data.activePools[1].lastSeen.label).toEqual('2026-05-26');
+  });
+
+  it('gives readers table-scrolling actions and names the people who acted', function() {
+    const html = renderHistory(data);
+    expect(html).toContain('Scroll across the table to read columns offscreen.');
+    expect(html).toContain('With a keyboard, tab to the table and press Left or Right.');
+    expect(html).not.toContain('Wide tables scroll sideways.');
+    expect(html).toContain('Coindroids developers built a game around Defcoin transactions');
+    expect(data.communityStory[4].paragraphs[0])
+      .toEqual('On 23 January 2021, Coindroids developers announced a pause in the game.');
   });
 
   it('renders history facts and source links while escaping paragraph text', function() {
-    const filename = path.resolve(__dirname, '../views/history.pug');
-    const source = fs.readFileSync(filename, 'utf8').replace(/^extends layout\n/, '');
     const fixture = {
       ...data,
       communityStory: data.communityStory.map(function(chapter, index) {
         return index === 0 ? { ...chapter, paragraphs: chapter.paragraphs.concat(['<script>untrusted</script>']) } : chapter;
       })
     };
-    const html = pug.render('mixin defcoinPageBranding(className)\n  span Defcoin\n' + source, {
-      ...fixture, filename
-    });
+    const html = renderHistory(fixture);
     expect(html).toContain('The community story');
     expect(html).toContain('Jeff Thomas (Xaphan)');
     expect(html).toContain('https://blog.coindroids.com/introducing-coindroids-2014/');

@@ -5,19 +5,23 @@ Use this standard for new prose and edits to current user-facing text, including
 ## Rules
 
 - Lead with the fact, result, or action the reader needs. Name the actor and use a direct verb.
+- Use active voice. Attribute human actions to the people who performed them; give unknown actors a truthful role such as developers or pool operators.
+- Eliminate negative parallelism from user-facing prose: `not X, but Y`, `X is not Y; it is Z`, `X, not Y`, and cross-sentence variants. State the affirmative fact directly. Explain technical differences through concrete facts about each state.
+- Remove self-observing narration and interpretive metadiscourse. State the subject's fact or give the reader a useful action. Interface hints should explain what to do and why.
+- Use explicit calendar dates for events and checks in durable prose. Replace `today`, `yesterday`, `tomorrow`, and unanchored `recently`. Keep publication, event, archive-capture, service-check, research, and copy-revision dates distinct.
 - Keep supported details: dates, versions, quantities, URLs, identifiers, attribution, and limits of the evidence. Never invent experience, examples, certainty, or a personal stake.
 - Remove filler, promotional claims, vague importance, and phrases that merely announce the next sentence. Explain what changed instead of calling it improved, robust, seamless, or transformative.
 - Use ordinary words and `is`, `has`, or `uses` when they carry the meaning. Keep an exact technical term when replacing it would lose information.
 - Connect sentences through cause, consequence, qualification, or the subject already under discussion. Avoid repeated openings, canned contrasts, symmetrical slogans, and strings of disconnected punchlines.
 - Vary sentence length where it helps the explanation. Do not force fragments, rough edges, percentage cuts, extra list items, or an arbitrary ban on three real steps.
 - Use sentence-case headings and the least formatting needed. Keep lists for actual steps or separate facts. Avoid decorative emphasis, emoji, and repeated em dashes.
-- Preserve useful warnings and uncertainty. A contrast that distinguishes two technical states is allowed; an empty rhetorical contrast is not.
+- Preserve useful warnings and uncertainty. State unknowns, missing evidence, and review scope directly; retain literal safety instructions.
 - Keep the writer's voice and make the smallest useful edit. Apply the same principles in other languages rather than importing English business jargon.
 - End with a concrete fact, next action, or remaining limitation. Do not add a generic summary or promise.
 
 ## Revision pass
 
-Draft the content, then remove words that add no meaning. Check for repeated sentence shapes and vague claims; read the result aloud or review its rhythm. Finally compare it with the source facts and check every number, link, warning, and qualification.
+Draft the content, then remove words that add no meaning. Review every sentence for negative parallelism, passive human actions, self-observing narration, relative dates, repeated shapes, and vague claims. Apply the same checks to the rewrite. Read its rhythm, then compare it with the source facts and check every number, link, warning, and qualification.
 
 For a new changelog entry, state what broke or changed, what was fixed, and what was tested. Separate completed checks from pending work. Append an entry; do not restyle earlier entries.
 
